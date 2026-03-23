@@ -147,6 +147,7 @@ interface PendingChapterScroll {
   chapterIndex: number
   chapterScrollProgress: number
   behavior: ScrollBehavior
+  align?: 'anchor' | 'bottom'
 }
 
 interface ReadingLocation {
@@ -572,6 +573,8 @@ export default function Reader() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [loadedChapters, setLoadedChapters] = useState<LoadedChapter[]>([])
   const [loadingChapterIndexes, setLoadingChapterIndexes] = useState<number[]>([])
+  const [boundaryLoadingDirection, setBoundaryLoadingDirection] = useState<'prev' | 'next' | null>(null)
+  const [draggingChapterProgress, setDraggingChapterProgress] = useState<number | null>(null)
   const [supportsDesktopOverlay, setSupportsDesktopOverlay] = useState(false)
   const [camouflageStage, setCamouflageStage] = useState<CamouflageStage>('expanded')
   const [camouflageWidgetPosition, setCamouflageWidgetPosition] = useState<CamouflageWidgetPosition>(
@@ -581,6 +584,7 @@ export default function Reader() {
 
   const contentRef = useRef<HTMLDivElement>(null)
   const chapterListRef = useRef<HTMLDivElement>(null)
+  const progressBarRef = useRef<HTMLDivElement>(null)
   const saveTimerRef = useRef<number | null>(null)
   const scrollTickingRef = useRef(false)
   const chapterWindowMaintainTimerRef = useRef<number | null>(null)
@@ -596,6 +600,8 @@ export default function Reader() {
   const chapterItemRefs = useRef<Record<number, HTMLButtonElement | null>>({})
   const chapterWindowRangeRef = useRef<ChapterWindowRange | null>(null)
   const pendingChapterScrollRef = useRef<PendingChapterScroll | null>(null)
+  const skipNextScrollSyncRef = useRef(false)
+  const boundaryChapterLoadingRef = useRef(false)
   const overlayReadingLocationRef = useRef<PendingChapterScroll | null>(null)
   const overlayReadingSaveTimerRef = useRef<number | null>(null)
   const overlayActionPollingRef = useRef(false)
@@ -626,6 +632,11 @@ export default function Reader() {
     currentNovel
       ? loadedChapters.find((chapter) => chapter.index === currentNovel.currentChapter) || null
       : null
+  const currentChapterProgressPercent = currentNovel
+    ? deriveChapterProgressFromOverall(currentNovel, currentNovel.currentChapter) * 100
+    : 0
+  const displayedChapterProgressPercent =
+    draggingChapterProgress ?? currentChapterProgressPercent
 
   const currentChapterContent = currentLoadedChapter?.content || ''
   const isRichContent = Boolean(
@@ -810,7 +821,7 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
 
     logDesktopOverlayDebug('sync controls', {
       currentChapter: novel.currentChapter,
-      readProgress: Number(novel.readProgress || 0),
+      chapterProgress: currentChapterProgressPercent,
       opacity: nextOpacity,
       camouflageEnabled: bossCamouflageEnabled,
     })
@@ -819,7 +830,7 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
     await UpdateDesktopReaderOverlayControls(
       JSON.stringify(chapterTitles),
       novel.currentChapter,
-      Number(novel.readProgress || 0),
+      deriveChapterProgressFromOverall(novel, novel.currentChapter) * 100,
       nextOpacity,
       bossCamouflageEnabled
     )
@@ -943,12 +954,20 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
 
   const resetLoadedChapterState = () => {
     chapterLoadRevisionRef.current += 1
+    clearChapterWindowMaintainTimer()
+    if (saveTimerRef.current) {
+      window.clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+    }
     chapterLoadPromisesRef.current = new Map()
     chapterContentMapRef.current = new Map()
     loadedChaptersRef.current = []
     chapterSectionRefs.current = {}
     chapterWindowRangeRef.current = null
     pendingChapterScrollRef.current = null
+    skipNextScrollSyncRef.current = false
+    boundaryChapterLoadingRef.current = false
+    setBoundaryLoadingDirection(null)
     overlayReadingLocationRef.current = null
     setLoadedChapters([])
     setLoadingChapterIndexes([])
@@ -1118,36 +1137,6 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
     } catch (error) {
       console.error('维护章节渲染窗口失败:', error)
     }
-  }
-
-  const scheduleChapterWindowMaintenance = (
-    focusChapterIndex: number,
-    options?: { preserveLocation?: boolean; delayMs?: number }
-  ) => {
-    const novel = currentNovelRef.current
-    if (!novel || novel.chapters.length === 0) {
-      return
-    }
-
-    const activeRange = chapterWindowRangeRef.current
-    const shouldMaintainImmediately =
-      !activeRange ||
-      focusChapterIndex <= activeRange.start + 1 ||
-      focusChapterIndex >= activeRange.end - 1 ||
-      focusChapterIndex < activeRange.start ||
-      focusChapterIndex > activeRange.end
-
-    if (!shouldMaintainImmediately) {
-      return
-    }
-
-    clearChapterWindowMaintainTimer()
-    chapterWindowMaintainTimerRef.current = window.setTimeout(() => {
-      chapterWindowMaintainTimerRef.current = null
-      void ensureChapterWindow(focusChapterIndex, {
-        preserveLocation: options?.preserveLocation,
-      })
-    }, options?.delayMs ?? 80)
   }
 
   const getChapterMetrics = (contentElement: HTMLDivElement, chapterIndex: number) => {
@@ -1361,10 +1350,13 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
     }
 
     const anchorOffset = contentElement.clientHeight * READING_ANCHOR_RATIO
-    const targetTop = Math.max(
-      metrics.top + metrics.height * pendingScroll.chapterScrollProgress - anchorOffset,
-      0
-    )
+    const targetTop =
+      pendingScroll.align === 'bottom'
+        ? Math.max(metrics.bottom - contentElement.clientHeight, 0)
+        : Math.max(
+            metrics.top + metrics.height * pendingScroll.chapterScrollProgress - anchorOffset,
+            0
+          )
 
     contentElement.scrollTo({
       top: targetTop,
@@ -1405,7 +1397,6 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
       void persistReadingProgress(chapterIndex, chapterScrollProgress)
     }, 260)
 
-    scheduleChapterWindowMaintenance(chapterIndex, { preserveLocation: true })
   }
 
   const flushOverlayReadingLocation = async (options?: { syncReaderView?: boolean }) => {
@@ -1462,7 +1453,7 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
   const moveToReadingLocation = async (
     chapterIndex: number,
     chapterScrollProgress: number,
-    options?: { preferSmooth?: boolean }
+    options?: { preferSmooth?: boolean; forceReloadWindow?: boolean }
   ) => {
     const novel = currentNovelRef.current
     if (!novel || novel.chapters.length === 0) {
@@ -1473,6 +1464,11 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
     const nextScrollProgress = clampUnitInterval(chapterScrollProgress)
 
     try {
+      clearChapterWindowMaintainTimer()
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+      }
       await setCurrentChapter(novel.filePath, nextChapterIndex)
       currentNovelRef.current = {
         ...novel,
@@ -1488,12 +1484,14 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
       )
       setShowSidebar(false)
 
-      const alreadyLoaded = chapterContentMapRef.current.has(nextChapterIndex)
+      const alreadyLoaded =
+        !options?.forceReloadWindow && chapterContentMapRef.current.has(nextChapterIndex)
       pendingChapterScrollRef.current = {
         chapterIndex: nextChapterIndex,
         chapterScrollProgress: nextScrollProgress,
         behavior:
           alreadyLoaded && options?.preferSmooth !== false ? 'smooth' : 'auto',
+        align: nextScrollProgress >= 1 ? 'bottom' : 'anchor',
       }
 
       if (alreadyLoaded) {
@@ -1502,10 +1500,15 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
         })
       } else {
         const nextRevision = resetLoadedChapterState()
+        chapterWindowRangeRef.current = {
+          start: nextChapterIndex,
+          end: nextChapterIndex,
+        }
         pendingChapterScrollRef.current = {
           chapterIndex: nextChapterIndex,
           chapterScrollProgress: nextScrollProgress,
           behavior: 'auto',
+          align: nextScrollProgress >= 1 ? 'bottom' : 'anchor',
         }
 
         if (contentRef.current) {
@@ -1518,7 +1521,7 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
         }
       }
 
-      void ensureChapterWindow(nextChapterIndex, { preserveLocation: true })
+      skipNextScrollSyncRef.current = true
       await persistReadingProgress(nextChapterIndex, nextScrollProgress)
 
       if (useDesktopOverlay && useWindowStore.getState().isStealthMode) {
@@ -1767,7 +1770,10 @@ const handleToggleCamouflage = () => {
       return
     }
 
-    await moveToReadingLocation(chapterIndex, 0)
+    await moveToReadingLocation(chapterIndex, 0, {
+      preferSmooth: false,
+      forceReloadWindow: true,
+    })
   }
 
   const handlePrevChapter = () => {
@@ -1817,7 +1823,104 @@ const handleToggleCamouflage = () => {
     const localProgress = (result.position - chapter.startPos) / chapterLength
 
     setShowSearch(false)
-    await moveToReadingLocation(chapterIndex, localProgress)
+    await moveToReadingLocation(chapterIndex, localProgress, {
+      preferSmooth: false,
+      forceReloadWindow: true,
+    })
+  }
+
+  const handleBoundaryChapterLoad = async (direction: 'prev' | 'next') => {
+    const novel = currentNovelRef.current
+    if (!novel || boundaryChapterLoadingRef.current) {
+      return
+    }
+
+    const targetChapterIndex =
+      direction === 'next' ? novel.currentChapter + 1 : novel.currentChapter - 1
+    if (targetChapterIndex < 0 || targetChapterIndex >= novel.chapters.length) {
+      return
+    }
+
+    boundaryChapterLoadingRef.current = true
+    setBoundaryLoadingDirection(direction)
+
+    try {
+      await moveToReadingLocation(targetChapterIndex, direction === 'next' ? 0 : 1, {
+        preferSmooth: false,
+        forceReloadWindow: true,
+      })
+    } finally {
+      boundaryChapterLoadingRef.current = false
+      setBoundaryLoadingDirection(null)
+    }
+  }
+
+  const resolveProgressBarPercent = (clientX: number) => {
+    const progressBarElement = progressBarRef.current
+    if (!progressBarElement) {
+      return 0
+    }
+
+    const rect = progressBarElement.getBoundingClientRect()
+    if (rect.width <= 0) {
+      return 0
+    }
+
+    return Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100))
+  }
+
+  const commitChapterProgressDrag = async (nextPercent: number) => {
+    const novel = currentNovelRef.current
+    if (!novel) {
+      return
+    }
+
+    setDraggingChapterProgress(null)
+    await moveToReadingLocation(novel.currentChapter, nextPercent / 100, {
+      preferSmooth: false,
+      forceReloadWindow: true,
+    })
+  }
+
+  const handleChapterProgressPointerDown = (
+    event: ReactPointerEvent<HTMLDivElement>
+  ) => {
+    if (event.button !== 0) {
+      return
+    }
+
+    const initialPercent = resolveProgressBarPercent(event.clientX)
+    setDraggingChapterProgress(initialPercent)
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      setDraggingChapterProgress(resolveProgressBarPercent(moveEvent.clientX))
+    }
+
+    const finishDrag = (pointerEvent?: PointerEvent) => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerCancel)
+
+      const finalPercent =
+        pointerEvent ? resolveProgressBarPercent(pointerEvent.clientX) : initialPercent
+      void commitChapterProgressDrag(finalPercent)
+    }
+
+    const handlePointerUp = (pointerEvent: PointerEvent) => {
+      finishDrag(pointerEvent)
+    }
+
+    const handlePointerCancel = () => {
+      setDraggingChapterProgress(null)
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerCancel)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerCancel)
+    event.preventDefault()
   }
 
   // 在普通阅读和摸鱼模式之间切换，同时处理桌面浮窗与 WebView 内透明阅读两套实现。
@@ -2012,13 +2115,6 @@ useEffect(() => {
     }
 
     void ensureChapterLoaded(currentNovel.filePath, initialChapterIndex, nextRevision)
-      .then(() => {
-        if (nextRevision !== chapterLoadRevisionRef.current) {
-          return
-        }
-
-        void ensureChapterWindow(initialChapterIndex, { preserveLocation: true, expectedRevision: nextRevision })
-      })
       .catch((error) => {
         if (nextRevision === chapterLoadRevisionRef.current) {
           console.error('初始化章节内容失败:', error)
@@ -2044,8 +2140,6 @@ useEffect(() => {
     if (!showSidebar || !currentNovel) {
       return
     }
-
-    syncActiveChapterFromReadingLocation()
 
     const frame = window.requestAnimationFrame(() => {
       const activeChapterIndex =
@@ -2439,14 +2533,15 @@ useEffect(() => {
       window.requestAnimationFrame(() => {
         scrollTickingRef.current = false
 
+        if (skipNextScrollSyncRef.current) {
+          skipNextScrollSyncRef.current = false
+          return
+        }
+
         const readingLocation = syncActiveChapterFromReadingLocation()
         if (!readingLocation) {
           return
         }
-
-        scheduleChapterWindowMaintenance(readingLocation.chapterIndex, {
-          preserveLocation: true,
-        })
 
         if (saveTimerRef.current) {
           window.clearTimeout(saveTimerRef.current)
@@ -2466,9 +2561,35 @@ useEffect(() => {
       })
     }
 
+    const handleWheel = (event: WheelEvent) => {
+      if (boundaryChapterLoadingRef.current) {
+        event.preventDefault()
+        return
+      }
+
+      const novel = currentNovelRef.current
+      if (!novel) {
+        return
+      }
+
+      const atTop = contentElement.scrollTop <= 2
+      const atBottom =
+        contentElement.scrollTop + contentElement.clientHeight >= contentElement.scrollHeight - 2
+
+      if (event.deltaY > 0 && atBottom && novel.currentChapter < novel.chapters.length - 1) {
+        event.preventDefault()
+        void handleBoundaryChapterLoad('next')
+      } else if (event.deltaY < 0 && atTop && novel.currentChapter > 0) {
+        event.preventDefault()
+        void handleBoundaryChapterLoad('prev')
+      }
+    }
+
     contentElement.addEventListener('scroll', handleScroll, { passive: true })
+    contentElement.addEventListener('wheel', handleWheel, { passive: false })
     return () => {
       contentElement.removeEventListener('scroll', handleScroll)
+      contentElement.removeEventListener('wheel', handleWheel)
       scrollTickingRef.current = false
       clearOverlayReadingSaveTimer()
       if (saveTimerRef.current) {
@@ -2750,6 +2871,9 @@ return (
           style={contentStyle}
         >
           <div className={styles.contentBody} style={{ opacity: displayOpacity }}>
+            {boundaryLoadingDirection === 'prev' && (
+              <div className={styles.inlineLoading}>正在回到上一章末尾...</div>
+            )}
             {isInitialChapterLoading ? (
               <div className={styles.loading}>章节内容加载中...</div>
             ) : (
@@ -2761,6 +2885,9 @@ return (
                 isAppendingChapters={isAppendingChapters}
                 chapterSectionRefs={chapterSectionRefs}
               />
+            )}
+            {boundaryLoadingDirection === 'next' && (
+              <div className={styles.inlineLoading}>下一章加载中...</div>
             )}
           </div>
         </div>
@@ -2894,14 +3021,26 @@ return (
             !bossMode.isChromeVisible ? styles.chromeHidden : ''
           }`}
         >
-          <div className={styles.progressBar}>
+          <div
+            ref={progressBarRef}
+            className={`${styles.progressBar} ${
+              draggingChapterProgress !== null ? styles.progressBarDragging : ''
+            }`}
+            onPointerDown={handleChapterProgressPointerDown}
+            role="slider"
+            aria-label="当前章节进度"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(displayedChapterProgressPercent)}
+            tabIndex={0}
+          >
             <div
               className={styles.progressFill}
-              style={{ width: `${currentNovel.readProgress || 0}%` }}
+              style={{ width: `${displayedChapterProgressPercent}%` }}
             />
           </div>
           <div className={styles.progressInfo}>
-            <span>总进度 {Number(currentNovel.readProgress || 0).toFixed(1)}%</span>
+            <span>章节进度 {displayedChapterProgressPercent.toFixed(1)}%</span>
             <span>章节 {currentNovel.currentChapter + 1} / {currentNovel.chapters.length}</span>
             <span>{currentChapter?.wordCount || 0} 字</span>
           </div>
