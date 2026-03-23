@@ -146,6 +146,20 @@
   transition:
     opacity var(--transition-base),
     transform var(--transition-base);
+  --wails-draggable: drag;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.toolbar button,
+.toolbar input,
+.toolbar select,
+.toolbar textarea,
+.toolbarPopover,
+.appearancePanel,
+.appearancePanel * {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 .toolbarLeft,
@@ -576,28 +590,8 @@
     transform var(--transition-base);
 }
 
-.progressBar {
+.readerProgressSlider {
   width: 100%;
-  height: 8px;
-  border-radius: 999px;
-  background: rgb(var(--neo-panel-muted));
-  border: var(--neo-border-width-sm) solid rgb(var(--neo-ink));
-  overflow: hidden;
-  cursor: pointer;
-}
-
-.progressFill {
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    rgba(var(--color-primary), 0.8),
-    rgba(var(--color-primary-light), 0.95)
-  );
-  transition: width var(--transition-base);
-}
-
-.progressBarDragging .progressFill {
-  transition: none;
 }
 
 .progressInfo {

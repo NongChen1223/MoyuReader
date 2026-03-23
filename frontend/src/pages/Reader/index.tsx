@@ -19,6 +19,7 @@ import { useWindowStore } from '@/stores/windowStore'
 import { useLibraryStore } from '@/stores/libraryStore'
 import ReadingAppearanceControls from '@/components/features/ReadingAppearanceControls'
 import CamouflagePendant from '@/components/features/CamouflagePendant'
+import Slider from '@/components/common/Slider'
 import {
   ConsumeDesktopReaderOverlayActions,
   DisableStealthMode,
@@ -135,6 +136,7 @@ const DESKTOP_OVERLAY_PREFETCH_AHEAD = {
   pdf: 2,
 }
 const READING_ANCHOR_RATIO = 0.18
+const BOUNDARY_CHAPTER_SWITCH_COOLDOWN_MS = 420
 
 interface LoadedChapter {
   index: number
@@ -574,7 +576,6 @@ export default function Reader() {
   const [loadedChapters, setLoadedChapters] = useState<LoadedChapter[]>([])
   const [loadingChapterIndexes, setLoadingChapterIndexes] = useState<number[]>([])
   const [boundaryLoadingDirection, setBoundaryLoadingDirection] = useState<'prev' | 'next' | null>(null)
-  const [draggingChapterProgress, setDraggingChapterProgress] = useState<number | null>(null)
   const [supportsDesktopOverlay, setSupportsDesktopOverlay] = useState(false)
   const [camouflageStage, setCamouflageStage] = useState<CamouflageStage>('expanded')
   const [camouflageWidgetPosition, setCamouflageWidgetPosition] = useState<CamouflageWidgetPosition>(
@@ -584,7 +585,6 @@ export default function Reader() {
 
   const contentRef = useRef<HTMLDivElement>(null)
   const chapterListRef = useRef<HTMLDivElement>(null)
-  const progressBarRef = useRef<HTMLDivElement>(null)
   const saveTimerRef = useRef<number | null>(null)
   const scrollTickingRef = useRef(false)
   const chapterWindowMaintainTimerRef = useRef<number | null>(null)
@@ -602,6 +602,7 @@ export default function Reader() {
   const pendingChapterScrollRef = useRef<PendingChapterScroll | null>(null)
   const skipNextScrollSyncRef = useRef(false)
   const boundaryChapterLoadingRef = useRef(false)
+  const boundaryChapterCooldownUntilRef = useRef(0)
   const overlayReadingLocationRef = useRef<PendingChapterScroll | null>(null)
   const overlayReadingSaveTimerRef = useRef<number | null>(null)
   const overlayActionPollingRef = useRef(false)
@@ -635,9 +636,6 @@ export default function Reader() {
   const currentChapterProgressPercent = currentNovel
     ? deriveChapterProgressFromOverall(currentNovel, currentNovel.currentChapter) * 100
     : 0
-  const displayedChapterProgressPercent =
-    draggingChapterProgress ?? currentChapterProgressPercent
-
   const currentChapterContent = currentLoadedChapter?.content || ''
   const isRichContent = Boolean(
     currentLoadedChapter?.isRichContent ||
@@ -967,6 +965,7 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
     pendingChapterScrollRef.current = null
     skipNextScrollSyncRef.current = false
     boundaryChapterLoadingRef.current = false
+    boundaryChapterCooldownUntilRef.current = 0
     setBoundaryLoadingDirection(null)
     overlayReadingLocationRef.current = null
     setLoadedChapters([])
@@ -1842,6 +1841,7 @@ const handleToggleCamouflage = () => {
     }
 
     boundaryChapterLoadingRef.current = true
+    boundaryChapterCooldownUntilRef.current = Date.now() + BOUNDARY_CHAPTER_SWITCH_COOLDOWN_MS
     setBoundaryLoadingDirection(direction)
 
     try {
@@ -1855,72 +1855,16 @@ const handleToggleCamouflage = () => {
     }
   }
 
-  const resolveProgressBarPercent = (clientX: number) => {
-    const progressBarElement = progressBarRef.current
-    if (!progressBarElement) {
-      return 0
-    }
-
-    const rect = progressBarElement.getBoundingClientRect()
-    if (rect.width <= 0) {
-      return 0
-    }
-
-    return Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100))
-  }
-
-  const commitChapterProgressDrag = async (nextPercent: number) => {
+  const handleChapterProgressChange = async (nextPercent: number) => {
     const novel = currentNovelRef.current
     if (!novel) {
       return
     }
 
-    setDraggingChapterProgress(null)
     await moveToReadingLocation(novel.currentChapter, nextPercent / 100, {
       preferSmooth: false,
       forceReloadWindow: true,
     })
-  }
-
-  const handleChapterProgressPointerDown = (
-    event: ReactPointerEvent<HTMLDivElement>
-  ) => {
-    if (event.button !== 0) {
-      return
-    }
-
-    const initialPercent = resolveProgressBarPercent(event.clientX)
-    setDraggingChapterProgress(initialPercent)
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      setDraggingChapterProgress(resolveProgressBarPercent(moveEvent.clientX))
-    }
-
-    const finishDrag = (pointerEvent?: PointerEvent) => {
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerUp)
-      window.removeEventListener('pointercancel', handlePointerCancel)
-
-      const finalPercent =
-        pointerEvent ? resolveProgressBarPercent(pointerEvent.clientX) : initialPercent
-      void commitChapterProgressDrag(finalPercent)
-    }
-
-    const handlePointerUp = (pointerEvent: PointerEvent) => {
-      finishDrag(pointerEvent)
-    }
-
-    const handlePointerCancel = () => {
-      setDraggingChapterProgress(null)
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerUp)
-      window.removeEventListener('pointercancel', handlePointerCancel)
-    }
-
-    window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('pointerup', handlePointerUp)
-    window.addEventListener('pointercancel', handlePointerCancel)
-    event.preventDefault()
   }
 
   // 在普通阅读和摸鱼模式之间切换，同时处理桌面浮窗与 WebView 内透明阅读两套实现。
@@ -2567,6 +2511,11 @@ useEffect(() => {
         return
       }
 
+      if (Date.now() < boundaryChapterCooldownUntilRef.current) {
+        event.preventDefault()
+        return
+      }
+
       const novel = currentNovelRef.current
       if (!novel) {
         return
@@ -3021,26 +2970,20 @@ return (
             !bossMode.isChromeVisible ? styles.chromeHidden : ''
           }`}
         >
-          <div
-            ref={progressBarRef}
-            className={`${styles.progressBar} ${
-              draggingChapterProgress !== null ? styles.progressBarDragging : ''
-            }`}
-            onPointerDown={handleChapterProgressPointerDown}
-            role="slider"
-            aria-label="当前章节进度"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(displayedChapterProgressPercent)}
-            tabIndex={0}
-          >
-            <div
-              className={styles.progressFill}
-              style={{ width: `${displayedChapterProgressPercent}%` }}
-            />
-          </div>
+          <Slider
+            min={0}
+            max={100}
+            step={1}
+            value={currentChapterProgressPercent}
+            onChange={(value) => {
+              void handleChapterProgressChange(value)
+            }}
+            commitOnRelease
+            showValue={false}
+            className={styles.readerProgressSlider}
+          />
           <div className={styles.progressInfo}>
-            <span>章节进度 {displayedChapterProgressPercent.toFixed(1)}%</span>
+            <span>章节进度 {Math.round(currentChapterProgressPercent)}%</span>
             <span>章节 {currentNovel.currentChapter + 1} / {currentNovel.chapters.length}</span>
             <span>{currentChapter?.wordCount || 0} 字</span>
           </div>
