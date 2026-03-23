@@ -683,6 +683,9 @@ export default function Reader() {
     : ''
   const routeState = (location.state as ReaderRouteState | null) ?? null
   const pendingRouteFilePath = routeState?.filePath?.trim() || ''
+  const isSwitchingRouteNovel = Boolean(
+    pendingRouteFilePath && currentNovel?.filePath !== pendingRouteFilePath
+  )
   const activeStealthOpacity = clampStealthOpacity(
     isStealthMode ? opacity : bossOpacity
   )
@@ -2474,7 +2477,7 @@ useEffect(() => {
     }
   }, [currentNovel?.filePath, loadedChapters.length])
 
-  if (!currentNovel && pendingRouteFilePath) {
+  if (isSwitchingRouteNovel || (!currentNovel && pendingRouteFilePath)) {
     return (
       <div className={styles.empty}>
         <p>正在打开阅读内容...</p>
