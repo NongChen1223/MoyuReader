@@ -26,10 +26,9 @@ static NSButton *moyureaderOverlayDirectoryButton = nil;
 static NSButton *moyureaderOverlayCamouflageButton = nil;
 static NSButton *moyureaderOverlayCloseButton = nil;
 static NSSlider *moyureaderOverlayOpacitySlider = nil;
+static NSSlider *moyureaderOverlayProgressSlider = nil;
 static NSTextField *moyureaderOverlayProgressLabel = nil;
 static NSTextField *moyureaderOverlayOpacityLabel = nil;
-static NSView *moyureaderOverlayProgressTrackView = nil;
-static NSView *moyureaderOverlayProgressFillView = nil;
 static NSView *moyureaderOverlayChapterPanelView = nil;
 static NSScrollView *moyureaderOverlayChapterListScrollView = nil;
 static NSView *moyureaderOverlayChapterListContentView = nil;
@@ -64,6 +63,7 @@ static CGFloat moyureaderOverlayLastAttachmentResizeWidth = 0.0;
 static CFTimeInterval moyureaderOverlayLastOpacityActionTimestamp = 0.0;
 static double moyureaderOverlayLastOpacityActionValue = -1.0;
 static CFTimeInterval moyureaderOverlayLastPositionActionTimestamp = 0.0;
+static CFTimeInterval moyureaderOverlayBoundaryActionCooldownUntil = 0.0;
 static NSInteger moyureaderOverlayLastPositionActionChapterIndex = -1;
 static double moyureaderOverlayLastPositionActionProgress = -1.0;
 static NSString *const MoyuReaderOverlayFrameWidthDefaultsKey = @"moyureader.overlay.frame.width";
@@ -90,6 +90,7 @@ static const CGFloat MoyuReaderOverlayChapterRowHeight = 34.0;
 static const CGFloat MoyuReaderOverlayChapterRowGap = 8.0;
 static const CGFloat MoyuReaderOverlayCamouflageWidth = 156.0;
 static const CGFloat MoyuReaderOverlayCamouflageHeight = 96.0;
+static const CFTimeInterval MoyuReaderOverlayBoundaryChapterSwitchCooldown = 0.42;
 @class MoyuReaderOverlayTextView;
 static void MoyuReaderHideDesktopReaderOverlayWindow(void);
 static void MoyuReaderLayoutDesktopReaderOverlayViews(void);
@@ -110,6 +111,7 @@ static void MoyuReaderMoveDesktopReaderOverlayToReadingLocation(int chapterIndex
 static void MoyuReaderSetOverlayChapterPanelVisible(BOOL visible);
 static void MoyuReaderRefreshOverlayControls(void);
 static void MoyuReaderRefreshOverlayProgressBar(void);
+static BOOL MoyuReaderTryEnqueueOverlayBoundaryChapterAction(BOOL moveToNextChapter);
 static void MoyuReaderRefreshOverlayChapterButtons(void);
 static void MoyuReaderApplyOverlayChapterButtonStyles(void);
 static void MoyuReaderEnqueueOverlayAction(NSString *type, NSInteger chapterIndex, double value, BOOL coalesce);
@@ -599,6 +601,16 @@ static void MoyuReaderOverlayDebugLog(NSString *format, ...) {
 	}
 }
 
+- (void)handleProgressChanged:(NSSlider *)sender {
+	double nextProgress = MAX(0.0, MIN(sender.doubleValue, 100.0));
+	moyureaderOverlayCurrentProgress = nextProgress;
+	MoyuReaderRefreshOverlayControls();
+	MoyuReaderMoveDesktopReaderOverlayToReadingLocation(
+		(int)moyureaderOverlayCurrentChapterIndex,
+		nextProgress / 100.0
+	);
+}
+
 - (void)handleSelectChapter:(NSButton *)sender {
 	MoyuReaderSetOverlayChapterPanelVisible(NO);
 	MoyuReaderEnqueueOverlayAction(@"chapter", sender.tag, NAN, NO);
@@ -712,7 +724,33 @@ static void MoyuReaderOverlayDebugLog(NSString *format, ...) {
 		[self.window orderFrontRegardless];
 	}
 
+	NSClipView *contentView = self.contentView;
+	NSView *documentView = self.documentView;
+	CGFloat offsetBefore = contentView != nil ? contentView.bounds.origin.y : 0.0;
+	CGFloat viewportHeightBefore = contentView != nil ? NSHeight(contentView.bounds) : 0.0;
+	CGFloat contentHeightBefore = documentView != nil ? NSHeight(documentView.frame) : 0.0;
+	CGFloat maxOffsetBefore = MAX(0.0, contentHeightBefore - viewportHeightBefore);
+	BOOL wasAtBottom = offsetBefore >= maxOffsetBefore - 2.0;
+	BOOL wasAtTop = offsetBefore <= 2.0;
+
 	[super scrollWheel:event];
+
+	if (contentView == nil || documentView == nil) {
+		return;
+	}
+
+	CGFloat offsetAfter = contentView.bounds.origin.y;
+	BOOL scrollPositionChanged = fabs(offsetAfter - offsetBefore) >= 0.5;
+
+	if (!scrollPositionChanged && wasAtBottom) {
+		if (MoyuReaderTryEnqueueOverlayBoundaryChapterAction(YES)) {
+			return;
+		}
+	}
+
+	if (!scrollPositionChanged && wasAtTop) {
+		MoyuReaderTryEnqueueOverlayBoundaryChapterAction(NO);
+	}
 }
 @end
 
@@ -1115,7 +1153,8 @@ static void MoyuReaderSetOverlayCamouflageEnabled(BOOL enabled) {
 static void MoyuReaderRefreshOverlayControls(void) {
 	if (moyureaderOverlayPrevButton == nil || moyureaderOverlayNextButton == nil ||
 	    moyureaderOverlayDirectoryButton == nil || moyureaderOverlayCamouflageButton == nil ||
-	    moyureaderOverlayOpacitySlider == nil || moyureaderOverlayProgressLabel == nil ||
+	    moyureaderOverlayOpacitySlider == nil || moyureaderOverlayProgressSlider == nil ||
+	    moyureaderOverlayProgressLabel == nil ||
 	    moyureaderOverlayOpacityLabel == nil) {
 		return;
 	}
@@ -1135,7 +1174,9 @@ static void MoyuReaderRefreshOverlayControls(void) {
 	double opacitySliderValue = MoyuReaderOverlayOpacitySliderValue(moyureaderOverlayCurrentOpacity);
 	[moyureaderOverlayOpacitySlider setDoubleValue:opacitySliderValue];
 	[moyureaderOverlayOpacitySlider setToolTip:[NSString stringWithFormat:@"透明度 %.2f", opacitySliderValue]];
-	[moyureaderOverlayProgressLabel setStringValue:[NSString stringWithFormat:@"总进度 %.1f%%", moyureaderOverlayCurrentProgress]];
+	[moyureaderOverlayProgressSlider setDoubleValue:moyureaderOverlayCurrentProgress];
+	[moyureaderOverlayProgressSlider setToolTip:[NSString stringWithFormat:@"章节进度 %.0f%%", round(moyureaderOverlayCurrentProgress)]];
+	[moyureaderOverlayProgressLabel setStringValue:[NSString stringWithFormat:@"章节进度 %.0f%%", round(moyureaderOverlayCurrentProgress)]];
 	[moyureaderOverlayOpacityLabel setStringValue:@"透明度"];
 	[moyureaderOverlayOpacityLabel setToolTip:[NSString stringWithFormat:@"透明度 %.2f", opacitySliderValue]];
 	MoyuReaderSetOverlayButtonTitle(
@@ -1179,29 +1220,37 @@ static void MoyuReaderRefreshOverlayControls(void) {
 		[[NSColor whiteColor] colorWithAlphaComponent:0.92],
 		[NSFont systemFontOfSize:12.0 weight:NSFontWeightSemibold]
 	);
-	MoyuReaderRefreshOverlayProgressBar();
 }
 
 static void MoyuReaderRefreshOverlayProgressBar(void) {
-	if (moyureaderOverlayProgressTrackView == nil || moyureaderOverlayProgressFillView == nil) {
+	if (moyureaderOverlayProgressSlider == nil) {
 		return;
 	}
 
-	CGFloat trackWidth = NSWidth(moyureaderOverlayProgressTrackView.bounds);
-	CGFloat trackHeight = NSHeight(moyureaderOverlayProgressTrackView.bounds);
-	if (trackWidth <= 0.0 || trackHeight <= 0.0) {
-		return;
+	[moyureaderOverlayProgressSlider setDoubleValue:MAX(0.0, MIN(moyureaderOverlayCurrentProgress, 100.0))];
+}
+
+static BOOL MoyuReaderTryEnqueueOverlayBoundaryChapterAction(BOOL moveToNextChapter) {
+	if (!moyureaderOverlayVisible || moyureaderOverlayChapterTitles.count == 0) {
+		return NO;
 	}
 
-	CGFloat progressRatio = MAX(0.0, MIN(moyureaderOverlayCurrentProgress / 100.0, 1.0));
-	CGFloat fillWidth = trackWidth * progressRatio;
-	if (fillWidth > 0.0) {
-		fillWidth = MAX(fillWidth, trackHeight);
+	CFTimeInterval now = CFAbsoluteTimeGetCurrent();
+	if (now < moyureaderOverlayBoundaryActionCooldownUntil) {
+		return NO;
 	}
-	fillWidth = MIN(fillWidth, trackWidth);
 
-	[moyureaderOverlayProgressFillView setHidden:(fillWidth <= 0.0)];
-	[moyureaderOverlayProgressFillView setFrame:NSMakeRect(0.0, 0.0, fillWidth, trackHeight)];
+	NSInteger targetChapter = moveToNextChapter
+		? moyureaderOverlayCurrentChapterIndex + 1
+		: moyureaderOverlayCurrentChapterIndex - 1;
+	if (targetChapter < 0 || targetChapter >= (NSInteger)moyureaderOverlayChapterTitles.count) {
+		return NO;
+	}
+
+	moyureaderOverlayBoundaryActionCooldownUntil =
+		now + MoyuReaderOverlayBoundaryChapterSwitchCooldown;
+	MoyuReaderEnqueueOverlayAction(moveToNextChapter ? @"next" : @"prev", -1, NAN, NO);
+	return YES;
 }
 
 static void MoyuReaderRefreshOverlayChapterButtons(void) {
@@ -2101,6 +2150,7 @@ static BOOL MoyuReaderRefreshOverlayCurrentChapterFromVisibleLocation(void) {
 	NSInteger chapterIndex = [readingLocation[@"chapterIndex"] integerValue];
 	double chapterProgress = [readingLocation[@"progress"] doubleValue];
 	moyureaderOverlayCurrentChapterIndex = chapterIndex;
+	moyureaderOverlayCurrentProgress = MAX(0.0, MIN(chapterProgress * 100.0, 100.0));
 	MoyuReaderOverlayDebugLog(
 		@"refresh current chapter for directory chapter=%ld progress=%.3f",
 		(long)chapterIndex,
@@ -2121,6 +2171,7 @@ static void MoyuReaderNotifyOverlayReadingLocationIfNeeded(void) {
 
 	NSInteger chapterIndex = [readingLocation[@"chapterIndex"] integerValue];
 	double chapterProgress = [readingLocation[@"progress"] doubleValue];
+	moyureaderOverlayCurrentProgress = MAX(0.0, MIN(chapterProgress * 100.0, 100.0));
 	CFTimeInterval now = CFAbsoluteTimeGetCurrent();
 	BOOL chapterChanged = chapterIndex != moyureaderOverlayLastPositionActionChapterIndex;
 	BOOL progressChangedEnough =
@@ -2397,13 +2448,13 @@ static void MoyuReaderLayoutDesktopReaderOverlayViews(void) {
 
 	CGFloat footerWidth = NSWidth(moyureaderOverlayFooterView.bounds);
 	CGFloat footerHeight = NSHeight(moyureaderOverlayFooterView.bounds);
-	CGFloat progressLabelWidth = 92.0;
+	CGFloat progressLabelWidth = 108.0;
 	[moyureaderOverlayProgressLabel setFrame:NSMakeRect(10.0, floor((footerHeight - 16.0) / 2.0), progressLabelWidth, 16.0)];
-	[moyureaderOverlayProgressTrackView setFrame:NSMakeRect(
+	[moyureaderOverlayProgressSlider setFrame:NSMakeRect(
 		progressLabelWidth + 16.0,
-		floor((footerHeight - 8.0) / 2.0),
+		floor((footerHeight - 20.0) / 2.0),
 		MAX(80.0, footerWidth - progressLabelWidth - 28.0),
-		8.0
+		20.0
 	)];
 	MoyuReaderRefreshOverlayProgressBar();
 
@@ -2565,20 +2616,14 @@ static void MoyuReaderEnsureDesktopReaderOverlayWindow(void) {
 	moyureaderOverlayDirectoryButton = MoyuReaderCreateOverlayActionButton(@"目录", @selector(handleToggleDirectory:));
 	moyureaderOverlayCamouflageButton = MoyuReaderCreateOverlayActionButton(@"收纳", @selector(handleToggleCamouflage:));
 	moyureaderOverlayCloseButton = MoyuReaderCreateOverlayActionButton(@"退出", @selector(handleCloseOverlay:));
-	moyureaderOverlayProgressLabel = MoyuReaderCreateOverlayLabel(@"总进度 0.0%");
+	moyureaderOverlayProgressLabel = MoyuReaderCreateOverlayLabel(@"章节进度 0%");
 	moyureaderOverlayOpacityLabel = MoyuReaderCreateOverlayLabel(@"透明度");
-	moyureaderOverlayProgressTrackView = [[NSView alloc] initWithFrame:NSZeroRect];
-	[moyureaderOverlayProgressTrackView setWantsLayer:YES];
-	moyureaderOverlayProgressTrackView.layer.cornerRadius = 4.0;
-	moyureaderOverlayProgressTrackView.layer.masksToBounds = YES;
-	moyureaderOverlayProgressTrackView.layer.backgroundColor = [[NSColor whiteColor] colorWithAlphaComponent:0.14].CGColor;
-
-	moyureaderOverlayProgressFillView = [[NSView alloc] initWithFrame:NSZeroRect];
-	[moyureaderOverlayProgressFillView setWantsLayer:YES];
-	moyureaderOverlayProgressFillView.layer.cornerRadius = 4.0;
-	moyureaderOverlayProgressFillView.layer.masksToBounds = YES;
-	moyureaderOverlayProgressFillView.layer.backgroundColor = [[NSColor whiteColor] colorWithAlphaComponent:0.92].CGColor;
-	[moyureaderOverlayProgressTrackView addSubview:moyureaderOverlayProgressFillView];
+	moyureaderOverlayProgressSlider = [[NSSlider alloc] initWithFrame:NSZeroRect];
+	[moyureaderOverlayProgressSlider setMinValue:0.0];
+	[moyureaderOverlayProgressSlider setMaxValue:100.0];
+	[moyureaderOverlayProgressSlider setContinuous:YES];
+	[moyureaderOverlayProgressSlider setTarget:moyureaderOverlayControlTarget];
+	[moyureaderOverlayProgressSlider setAction:@selector(handleProgressChanged:)];
 
 	moyureaderOverlayOpacitySlider = [[NSSlider alloc] initWithFrame:NSZeroRect];
 	[moyureaderOverlayOpacitySlider setMinValue:0.02];
@@ -2595,7 +2640,7 @@ static void MoyuReaderEnsureDesktopReaderOverlayWindow(void) {
 	[moyureaderOverlayControlsView addSubview:moyureaderOverlayOpacityLabel];
 	[moyureaderOverlayControlsView addSubview:moyureaderOverlayOpacitySlider];
 	[moyureaderOverlayFooterView addSubview:moyureaderOverlayProgressLabel];
-	[moyureaderOverlayFooterView addSubview:moyureaderOverlayProgressTrackView];
+	[moyureaderOverlayFooterView addSubview:moyureaderOverlayProgressSlider];
 
 	moyureaderOverlayChapterPanelView = [[MoyuReaderOverlayChapterPanelView alloc] initWithFrame:NSZeroRect];
 	[moyureaderOverlayChapterPanelView setWantsLayer:YES];

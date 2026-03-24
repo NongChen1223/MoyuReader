@@ -1383,7 +1383,7 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
       const nextProgress = calculateProgressFromPosition(novel, chapterIndex, chapterScrollProgress)
       const currentProgress = Number(novel.readProgress || 0)
       const shouldSyncReaderState =
-        chapterIndex !== novel.currentChapter || Math.abs(currentProgress - nextProgress) >= 0.2
+        chapterIndex !== novel.currentChapter || Math.abs(currentProgress - nextProgress) >= 0.05
 
       if (shouldSyncReaderState) {
         applyReadingProgressState(chapterIndex, chapterScrollProgress)
