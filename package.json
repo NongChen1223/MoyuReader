@@ -1,0 +1,21 @@
+{
+  "name": "moyureader-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.mjs",
+  "scripts": {
+    "dev": "concurrently -k \"pnpm --dir frontend dev\" \"wait-on tcp:127.0.0.1:5173 && electron .\"",
+    "dev:frontend": "pnpm --dir frontend dev",
+    "dev:electron": "electron .",
+    "build": "pnpm build:frontend && pnpm build:server",
+    "build:frontend": "pnpm --dir frontend build",
+    "build:server": "go build -o build/bin/moyureader-server ./cmd/moyureader-server",
+    "type-check": "pnpm --dir frontend type-check"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "electron": "^42.2.0",
+    "wait-on": "^8.0.5"
+  }
+}

@@ -1,12 +1,42 @@
 import type { Book, Chapter, Novel } from '@/types'
-import { models } from '@/wailsjs/go/models'
 
 const DEFAULT_AUTHOR = '未知作者'
 export const CONTENT_CHUNK_CLASS_NAME = 'reader-content-chunk'
 const PLAIN_TEXT_CHUNK_SIZE = 18
 const RICH_TEXT_CHUNK_SIZE = 16
 
-export function normalizeNovel(source: models.Novel | Novel): Novel {
+type BridgeChapter = {
+  index: number
+  title: string
+  startPos?: number
+  start_pos?: number
+  endPos?: number
+  end_pos?: number
+  wordCount?: number
+  word_count?: number
+}
+
+type BridgeNovel = {
+  title: string
+  author?: string
+  filePath?: string
+  file_path?: string
+  cover?: string
+  format: string
+  size: number
+  content?: string
+  contentLength?: number
+  content_length?: number
+  chapters?: BridgeChapter[]
+  currentChapter?: number
+  current_chapter?: number
+  readProgress?: number
+  read_progress?: number
+  lastReadTime?: number
+  last_read_time?: number
+}
+
+export function normalizeNovel(source: BridgeNovel | Novel): Novel {
   const sourceChapters = 'chapters' in source ? source.chapters : []
 
   return {
@@ -29,7 +59,7 @@ export function normalizeNovel(source: models.Novel | Novel): Novel {
   }
 }
 
-export function normalizeChapter(source: models.Chapter | Chapter): Chapter {
+export function normalizeChapter(source: BridgeChapter | Chapter): Chapter {
   return {
     index: source.index,
     title: source.title,
@@ -440,27 +470,43 @@ function normalizeDesktopOverlayHtml(content: string) {
   parsed.querySelectorAll('script,style,link,meta,svg').forEach((node) => node.remove())
 
   parsed.querySelectorAll('img').forEach((image) => {
-    const currentStyle = image.getAttribute('style')?.trim()
-    const styles = [
-      currentStyle?.replace(/;$/, ''),
-      'display:block',
-      'max-width:100%',
-      'height:auto',
-      'margin:0 auto',
-    ].filter(Boolean)
-
     image.removeAttribute('loading')
-    image.setAttribute('style', styles.join('; '))
+    image.removeAttribute('class')
+    image.setAttribute(
+      'style',
+      'display:block; max-width:100%; height:auto; margin:0 auto; opacity:inherit;'
+    )
     if (!image.getAttribute('alt')) {
       image.setAttribute('alt', '')
     }
   })
 
   parsed.querySelectorAll('figure').forEach((figure) => {
-    const currentStyle = figure.getAttribute('style')?.trim()
-    const styles = [currentStyle?.replace(/;$/, ''), 'margin:0 0 1em'].filter(Boolean)
-    figure.setAttribute('style', styles.join('; '))
+    figure.removeAttribute('class')
+    figure.setAttribute('style', 'margin:0 0 1em; background:transparent;')
   })
+
+  parsed
+    .querySelectorAll<HTMLElement>('*')
+    .forEach((element) => {
+      if (element.tagName.toLowerCase() === 'img') {
+        return
+      }
+
+      element.removeAttribute('class')
+      const currentStyle = element.getAttribute('style') || ''
+      const sanitizedStyle = currentStyle
+        .replace(/color\s*:[^;]+;?/gi, '')
+        .replace(/background(?:-color)?\s*:[^;]+;?/gi, '')
+        .replace(/font-family\s*:[^;]+;?/gi, '')
+        .replace(/opacity\s*:[^;]+;?/gi, '')
+        .trim()
+
+      element.setAttribute(
+        'style',
+        `${sanitizedStyle ? `${sanitizedStyle.replace(/;?$/, '; ')} ` : ''}color: inherit; background: transparent;`.trim()
+      )
+    })
 
   return parsed.body.innerHTML.trim()
 }

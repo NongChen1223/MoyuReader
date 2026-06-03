@@ -9,8 +9,9 @@ import (
 
 	"github.com/nongchen1223/moyureader/backend/config"
 	"github.com/nongchen1223/moyureader/backend/services"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+type DirectoryPicker func(defaultPath string) (string, error)
 
 // App 应用主结构
 type App struct {
@@ -20,6 +21,7 @@ type App struct {
 	windowService   *services.WindowService
 	searchService   *services.SearchService
 	progressService *services.ProgressService
+	directoryPicker DirectoryPicker
 }
 
 // NewApp 创建应用实例
@@ -39,6 +41,11 @@ func NewApp(
 	}
 }
 
+// SetDirectoryPicker 注入目录选择能力，避免核心应用状态直接依赖具体桌面壳。
+func (a *App) SetDirectoryPicker(directoryPicker DirectoryPicker) {
+	a.directoryPicker = directoryPicker
+}
+
 // Startup 应用启动时调用
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
@@ -49,11 +56,6 @@ func (a *App) Startup(ctx context.Context) {
 	a.searchService.Init(ctx)
 	a.progressService.Init(ctx)
 
-	// 发送启动完成事件
-	runtime.EventsEmit(ctx, "app:ready", map[string]interface{}{
-		"version":     a.config.Version,
-		"environment": a.config.Environment,
-	})
 }
 
 // Shutdown 应用关闭时调用
@@ -98,12 +100,11 @@ func (a *App) resolveDirectoryDialogDefaultPath() string {
 
 // SelectDataDir 打开目录选择器，选择新的应用数据目录
 func (a *App) SelectDataDir() (string, error) {
-	selectedDir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
-		Title:                "选择应用数据目录",
-		DefaultDirectory:     a.resolveDirectoryDialogDefaultPath(),
-		CanCreateDirectories: true,
-		ShowHiddenFiles:      true,
-	})
+	if a.directoryPicker == nil {
+		return "", fmt.Errorf("当前桌面入口未注入目录选择器")
+	}
+
+	selectedDir, err := a.directoryPicker(a.resolveDirectoryDialogDefaultPath())
 	if err != nil {
 		return "", fmt.Errorf("打开目录选择器失败: %w", err)
 	}

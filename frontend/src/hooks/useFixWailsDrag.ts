@@ -1,17 +1,17 @@
 import { useEffect } from 'react'
 
 /**
- * 修复 Wails 窗口拖拽在隐藏后重新显示时失效的问题
+ * 修复桌面端窗口拖拽在隐藏后重新显示时失效的问题
  *
  * 问题：当窗口隐藏后再显示，Chromium 渲染引擎不会正确刷新拖拽区域
  * 解决方案：监听窗口可见性变化，强制刷新拖拽区域的 CSS 属性
  *
  * 使用方法：
  * ```tsx
- * import { useFixWailsDrag } from './hooks/useFixWailsDrag'
+ * import { useDesktopDrag } from './hooks/useDesktopDrag'
  *
  * function App() {
- *   useFixWailsDrag()
+ *   useDesktopDrag()
  *   return <div>...</div>
  * }
  * ```

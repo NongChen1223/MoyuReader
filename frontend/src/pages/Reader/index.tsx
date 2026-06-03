@@ -20,24 +20,7 @@ import { useLibraryStore } from '@/stores/libraryStore'
 import ReadingAppearanceControls from '@/components/features/ReadingAppearanceControls'
 import CamouflagePendant from '@/components/features/CamouflagePendant'
 import Slider from '@/components/common/Slider'
-import {
-  ConsumeDesktopReaderOverlayActions,
-  DisableStealthMode,
-  GetDesktopReaderOverlayReadingLocation,
-  EnableStealthMode,
-  HideDesktopReaderOverlay,
-  IsDesktopReaderOverlayVisible,
-  MoveDesktopReaderOverlayToReadingLocation,
-  OnMouseEnter,
-  OnMouseLeave,
-  SetOpacity,
-  ShowDesktopReaderOverlay,
-  SupportsDesktopReaderOverlay,
-  UpdateDesktopReaderOverlay,
-  UpdateDesktopReaderOverlayOpacity,
-  UpdateDesktopReaderOverlayControls,
-} from '@/wailsjs/go/services/WindowService'
-import { EventsOn } from '@/wailsjs/runtime/runtime'
+import { desktopBridge } from '@/bridge'
 import {
   getChapterContentPayload,
   openNovel,
@@ -160,6 +143,7 @@ interface ReadingLocation {
 interface ReaderRouteState {
   filePath?: string
   activateBossMode?: boolean
+  bossModeEntry?: 'home' | 'reader'
   returnDirectoryId?: string
 }
 
@@ -513,16 +497,12 @@ function buildCamouflageTransformOrigin(position: CamouflageWidgetPosition) {
   return `calc(${CAMOUFLAGE_VIEWPORT_PADDING}px + ${normalized.x} * (100vw - ${CAMOUFLAGE_WIDGET_WIDTH}px - ${CAMOUFLAGE_VIEWPORT_PADDING * 2}px) + ${CAMOUFLAGE_WIDGET_WIDTH / 2}px) calc(${CAMOUFLAGE_VIEWPORT_PADDING}px + ${normalized.y} * (100vh - ${CAMOUFLAGE_WIDGET_HEIGHT}px - ${CAMOUFLAGE_VIEWPORT_PADDING * 2}px) + ${CAMOUFLAGE_WIDGET_HEIGHT / 2}px)`
 }
 
-function hasWailsRuntimeEvents() {
+function hasDesktopRuntimeEvents() {
   if (typeof window === 'undefined') {
     return false
   }
 
-  const runtime = (window as Window & {
-    runtime?: { EventsOnMultiple?: unknown }
-  }).runtime
-
-  return typeof runtime?.EventsOnMultiple === 'function'
+  return typeof window.moyuDesktop?.events?.on === 'function'
 }
 
 function logDesktopOverlayDebug(...args: unknown[]) {
@@ -616,6 +596,9 @@ export default function Reader() {
   const overlayOpacityLastSentRef = useRef<number | null>(null)
   const overlayOpacityRevisionRef = useRef(0)
   const overlayOpacityInFlightRef = useRef(false)
+  const bossModeEntryRef = useRef<'home' | 'reader'>('reader')
+  const bossRouteActivationConsumedRef = useRef('')
+  const desktopOverlayClosingRef = useRef(false)
   const useDesktopOverlay = supportsDesktopOverlay
   const isWebviewStealthMode = isStealthMode && !useDesktopOverlay
   const bossMode = useBossMode({
@@ -704,6 +687,7 @@ export default function Reader() {
       : activeStealthOpacity
     : 1
   const shouldActivateBossMode = Boolean(routeState?.activateBossMode)
+  const routeBossModeEntry = routeState?.bossModeEntry ?? 'reader'
   const returnDirectoryId = routeState?.returnDirectoryId
   const contentStyle: CSSProperties = {
     maxWidth: `${pageWidth}%`,
@@ -780,7 +764,7 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
           }
         : resolveReaderReadingLocation()
 
-    await UpdateDesktopReaderOverlay(
+          await desktopBridge.window.updateDesktopReaderOverlay(
       overlayChapterMarkup,
       Math.round(fontSize),
       lineHeight,
@@ -825,7 +809,7 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
     })
 
     const chapterTitles = novel.chapters.map((chapter) => chapter.title)
-    await UpdateDesktopReaderOverlayControls(
+    await desktopBridge.window.updateDesktopReaderOverlayControls(
       JSON.stringify(chapterTitles),
       novel.currentChapter,
       deriveChapterProgressFromOverall(novel, novel.currentChapter) * 100,
@@ -908,7 +892,7 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
           continue
         }
 
-        await UpdateDesktopReaderOverlayOpacity(nextOpacity)
+        await desktopBridge.window.updateDesktopReaderOverlayOpacity(nextOpacity)
 
         if (revision !== overlayOpacityRevisionRef.current) {
           return
@@ -1262,7 +1246,7 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
     }
 
     logDesktopOverlayDebug('sync overlay position', readingLocation)
-    await MoveDesktopReaderOverlayToReadingLocation(
+    await desktopBridge.window.moveDesktopReaderOverlayToReadingLocation(
       readingLocation.chapterIndex,
       readingLocation.chapterScrollProgress
     )
@@ -1274,7 +1258,7 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
     }
 
     try {
-      const rawPayload = await GetDesktopReaderOverlayReadingLocation()
+      const rawPayload = await desktopBridge.window.getDesktopReaderOverlayReadingLocation()
       if (!rawPayload) {
         return null
       }
@@ -1664,11 +1648,11 @@ const handleReaderShellMouseEnter = () => {
   }
 
   bossMode.handlePointerEnter()
-  void OnMouseEnter()
+  void desktopBridge.window.onMouseEnter()
 }
 
 const handleReaderShellMouseLeave = () => {
-  void OnMouseLeave()
+  void desktopBridge.window.onMouseLeave()
 
   if (isCamouflageFeatureActive) {
     startCamouflageCollapse()
@@ -1711,6 +1695,7 @@ const handleToggleCamouflage = () => {
 
     const nextRouteState: ReaderRouteState = {
       ...(routeState?.activateBossMode ? { activateBossMode: true } : {}),
+      ...(routeState?.activateBossMode ? { bossModeEntry: routeBossModeEntry } : {}),
       ...(returnDirectoryId ? { returnDirectoryId } : {}),
     }
 
@@ -1761,6 +1746,7 @@ const handleToggleCamouflage = () => {
     pendingRouteFilePath,
     returnDirectoryId,
     routeState?.activateBossMode,
+    routeBossModeEntry,
     setCurrentNovel,
   ])
 
@@ -1872,9 +1858,24 @@ const handleToggleCamouflage = () => {
     const nextStealthMode = !isStealthMode
     const rememberedBossOpacity = getPersistedBossOpacity(useSettingsStore.getState().bossOpacity)
 
+    if (nextStealthMode && desktopOverlayClosingRef.current) {
+      return
+    }
+
     try {
       if (useDesktopOverlay) {
         if (nextStealthMode) {
+          if (!shouldActivateBossMode) {
+            bossModeEntryRef.current = 'reader'
+          }
+
+          const activeNovel = currentNovelRef.current
+          if (!activeNovel) {
+            return
+          }
+
+          await ensureChapterLoaded(activeNovel.filePath, activeNovel.currentChapter)
+
           const { red, green, blue } = parseHexColor(textColor)
           const currentReadingLocation = resolveReaderReadingLocation()
           resetDesktopOverlayOpacitySync()
@@ -1889,8 +1890,8 @@ const handleToggleCamouflage = () => {
             )
           }
 
-          await ShowDesktopReaderOverlay(
-            currentChapterOverlayMarkup,
+          await desktopBridge.window.showDesktopReaderOverlay(
+            overlayChapterMarkup,
             Math.round(fontSize),
             lineHeight,
             rememberedBossOpacity,
@@ -1910,7 +1911,7 @@ const handleToggleCamouflage = () => {
           flushBossOpacityPersist(useWindowStore.getState().opacity)
           resetDesktopOverlayOpacitySync()
           await captureDesktopOverlayReadingLocation()
-          await HideDesktopReaderOverlay()
+          await desktopBridge.window.hideDesktopReaderOverlay()
           setStealthMode(false)
           setOpacity(1)
           bossMode.closePanel()
@@ -1923,15 +1924,15 @@ const handleToggleCamouflage = () => {
       if (nextStealthMode) {
         resetDesktopOverlayOpacitySync()
         setBossOpacity(rememberedBossOpacity)
-        await EnableStealthMode()
-        await SetOpacity(rememberedBossOpacity)
+        await desktopBridge.window.enableStealthMode()
+        await desktopBridge.window.setOpacity(rememberedBossOpacity)
         setStealthMode(true)
         setOpacity(rememberedBossOpacity)
         bossMode.revealImmediately()
       } else {
         flushBossOpacityPersist(useWindowStore.getState().opacity)
         resetDesktopOverlayOpacitySync()
-        await DisableStealthMode()
+        await desktopBridge.window.disableStealthMode()
         setStealthMode(false)
         setOpacity(1)
         bossMode.closePanel()
@@ -1960,10 +1961,45 @@ const handleToggleCamouflage = () => {
       }
 
       resetDesktopOverlayOpacitySync()
-      await SetOpacity(nextOpacity)
+      await desktopBridge.window.setOpacity(nextOpacity)
     } catch (error) {
       console.error('设置透明度失败:', error)
     }
+  }
+
+  const closeDesktopOverlayAfterUserAction = async () => {
+    const shouldReturnHome = bossModeEntryRef.current === 'home'
+    desktopOverlayClosingRef.current = true
+
+    try {
+      flushBossOpacityPersist(useWindowStore.getState().opacity)
+      resetDesktopOverlayOpacitySync()
+      await captureDesktopOverlayReadingLocation()
+      await desktopBridge.window.hideDesktopReaderOverlay()
+      setStealthMode(false)
+      setOpacity(1)
+      bossMode.closePanel()
+      await flushOverlayReadingLocation({ syncReaderView: !shouldReturnHome })
+    } catch (error) {
+      console.error('关闭桌面浮窗失败:', error)
+    } finally {
+      bossModeEntryRef.current = 'reader'
+      window.setTimeout(() => {
+        desktopOverlayClosingRef.current = false
+      }, 800)
+    }
+
+    if (shouldReturnHome) {
+      navigate(returnDirectoryId ? `/home?directory=${encodeURIComponent(returnDirectoryId)}` : '/home', {
+        replace: true,
+      })
+      return
+    }
+
+    navigate(location.pathname, {
+      replace: true,
+      state: returnDirectoryId ? { returnDirectoryId } : null,
+    })
   }
 
   const handleReturnHome = async () => {
@@ -1973,11 +2009,11 @@ const handleToggleCamouflage = () => {
         if (useDesktopOverlay) {
           resetDesktopOverlayOpacitySync()
           await captureDesktopOverlayReadingLocation()
-          await HideDesktopReaderOverlay()
+          await desktopBridge.window.hideDesktopReaderOverlay()
           await flushOverlayReadingLocation()
         } else {
           resetDesktopOverlayOpacitySync()
-          await DisableStealthMode()
+          await desktopBridge.window.disableStealthMode()
         }
         setStealthMode(false)
         setOpacity(1)
@@ -2157,7 +2193,7 @@ useEffect(() => {
 
     const detectDesktopOverlay = async () => {
       try {
-        const supported = await SupportsDesktopReaderOverlay()
+        const supported = await desktopBridge.window.supportsDesktopReaderOverlay()
         if (!disposed) {
           setSupportsDesktopOverlay(Boolean(supported))
         }
@@ -2176,10 +2212,26 @@ useEffect(() => {
   }, [])
 
   useEffect(() => {
-    if (!currentNovel || !shouldActivateBossMode || isStealthMode) {
+    if (
+      !currentNovel ||
+      !shouldActivateBossMode ||
+      isStealthMode ||
+      !currentLoadedChapter ||
+      currentLoadedChapter.index !== currentNovel.currentChapter
+    ) {
       return
     }
 
+    const activationKey = `${currentNovel.filePath}:${returnDirectoryId || ''}`
+    if (
+      desktopOverlayClosingRef.current ||
+      bossRouteActivationConsumedRef.current === activationKey
+    ) {
+      return
+    }
+
+    bossRouteActivationConsumedRef.current = activationKey
+    bossModeEntryRef.current = routeBossModeEntry
     void handleToggleStealthMode()
     navigate(location.pathname, {
       replace: true,
@@ -2187,11 +2239,13 @@ useEffect(() => {
     })
   }, [
     currentNovel,
+    currentLoadedChapter,
     handleToggleStealthMode,
     isStealthMode,
     location.pathname,
     navigate,
     returnDirectoryId,
+    routeBossModeEntry,
     shouldActivateBossMode,
   ])
 
@@ -2219,13 +2273,13 @@ useEffect(() => {
       windowState.setOpacity(1)
 
       if (useDesktopOverlay) {
-        void HideDesktopReaderOverlay().catch((error) => {
+        void desktopBridge.window.hideDesktopReaderOverlay().catch((error) => {
           console.error('清理桌面浮窗失败:', error)
         })
         return
       }
 
-      void DisableStealthMode().catch((error) => {
+      void desktopBridge.window.disableStealthMode().catch((error) => {
         console.error('清理阅读摸鱼模式失败:', error)
       })
     }
@@ -2278,19 +2332,12 @@ useEffect(() => {
 
     const syncOverlayState = async () => {
       try {
-        const isOverlayVisible = await IsDesktopReaderOverlayVisible()
+        const isOverlayVisible = await desktopBridge.window.isDesktopReaderOverlayVisible()
         if (isOverlayVisible || !useWindowStore.getState().isStealthMode) {
           return
         }
 
-        flushBossOpacityPersist(useWindowStore.getState().opacity)
-        resetDesktopOverlayOpacitySync()
-        await captureDesktopOverlayReadingLocation()
-        await HideDesktopReaderOverlay()
-        setStealthMode(false)
-        setOpacity(1)
-        bossMode.closePanel()
-        await flushOverlayReadingLocation({ syncReaderView: true })
+        await closeDesktopOverlayAfterUserAction()
       } catch (error) {
         console.error('同步桌面浮窗状态失败:', error)
       }
@@ -2311,20 +2358,51 @@ useEffect(() => {
       window.removeEventListener('focus', handleWindowReturn)
       document.removeEventListener('visibilitychange', handleWindowReturn)
     }
-  }, [bossMode, setOpacity, setStealthMode, useDesktopOverlay])
+  }, [bossMode, closeDesktopOverlayAfterUserAction, setOpacity, setStealthMode, useDesktopOverlay])
 
   useEffect(() => {
     if (!useDesktopOverlay || !isStealthMode) {
       return
     }
 
-    const timer = window.setInterval(() => {
+    const handleDesktopOverlayActions = async (actions: DesktopOverlayAction[]) => {
+      logDesktopOverlayDebug('consume actions', actions)
+
+      for (const action of actions) {
+        if (action.type === 'prev') {
+          handlePrevChapter()
+        } else if (action.type === 'next') {
+          handleNextChapter()
+        } else if (action.type === 'chapter' && typeof action.chapterIndex === 'number') {
+          await handleChapterChange(action.chapterIndex)
+        } else if (
+          action.type === 'position' &&
+          typeof action.chapterIndex === 'number' &&
+          typeof action.value === 'number'
+        ) {
+          rememberOverlayReadingLocation(
+            action.chapterIndex,
+            clampUnitInterval(action.value)
+          )
+        } else if (action.type === 'opacity' && typeof action.value === 'number') {
+          await handleOpacityChange(action.value, {
+            desktopOverlayAlreadyApplied: true,
+          })
+        } else if (action.type === 'camouflage') {
+          setBossCamouflageEnabled(Boolean(action.value))
+        } else if (action.type === 'close') {
+          await closeDesktopOverlayAfterUserAction()
+        }
+      }
+    }
+
+    const consumeQueuedOverlayActions = () => {
       if (overlayActionPollingRef.current) {
         return
       }
 
       overlayActionPollingRef.current = true
-      void ConsumeDesktopReaderOverlayActions()
+      void desktopBridge.window.consumeDesktopReaderOverlayActions()
         .then(async (rawPayload) => {
           if (!rawPayload) {
             return
@@ -2338,41 +2416,7 @@ useEffect(() => {
             return
           }
 
-          logDesktopOverlayDebug('consume actions', actions)
-
-          for (const action of actions) {
-            if (action.type === 'prev') {
-              handlePrevChapter()
-            } else if (action.type === 'next') {
-              handleNextChapter()
-            } else if (action.type === 'chapter' && typeof action.chapterIndex === 'number') {
-              await handleChapterChange(action.chapterIndex)
-            } else if (
-              action.type === 'position' &&
-              typeof action.chapterIndex === 'number' &&
-              typeof action.value === 'number'
-            ) {
-              rememberOverlayReadingLocation(
-                action.chapterIndex,
-                clampUnitInterval(action.value)
-              )
-            } else if (action.type === 'opacity' && typeof action.value === 'number') {
-              await handleOpacityChange(action.value, {
-                desktopOverlayAlreadyApplied: true,
-              })
-            } else if (action.type === 'camouflage') {
-              setBossCamouflageEnabled(Boolean(action.value))
-            } else if (action.type === 'close') {
-              flushBossOpacityPersist(useWindowStore.getState().opacity)
-              resetDesktopOverlayOpacitySync()
-              await captureDesktopOverlayReadingLocation()
-              await HideDesktopReaderOverlay()
-              setStealthMode(false)
-              setOpacity(1)
-              bossMode.closePanel()
-              await flushOverlayReadingLocation({ syncReaderView: true })
-            }
-          }
+          await handleDesktopOverlayActions(actions)
         })
         .catch((error) => {
           console.error('读取原生浮窗动作失败:', error)
@@ -2380,13 +2424,28 @@ useEffect(() => {
         .finally(() => {
           overlayActionPollingRef.current = false
         })
+    }
+
+    const offOverlayActions = desktopBridge.events.on('desktopOverlay:actions', (actions) => {
+      if (Array.isArray(actions) && actions.some((action) => action?.type === 'close')) {
+        void handleDesktopOverlayActions(actions as DesktopOverlayAction[])
+        return
+      }
+
+      window.setTimeout(consumeQueuedOverlayActions, 0)
+    })
+
+    const timer = window.setInterval(() => {
+      consumeQueuedOverlayActions()
     }, 120)
 
     return () => {
       window.clearInterval(timer)
+      offOverlayActions()
     }
   }, [
     bossMode,
+    closeDesktopOverlayAfterUserAction,
     currentNovel,
     handleChapterChange,
     handleOpacityChange,
@@ -2399,14 +2458,18 @@ useEffect(() => {
   ])
 
   useEffect(() => {
-    if (!hasWailsRuntimeEvents()) {
+    if (!hasDesktopRuntimeEvents()) {
       return
     }
 
-    const offStealthMode = EventsOn('window:stealthMode', (enabled: boolean) => {
+    const offStealthMode = desktopBridge.events.on('window:stealthMode', (enabled: boolean) => {
+      if (enabled && desktopOverlayClosingRef.current) {
+        return
+      }
+
       setStealthMode(Boolean(enabled))
     })
-    const offOpacity = EventsOn('window:opacity', (nextOpacity: number) => {
+    const offOpacity = desktopBridge.events.on('window:opacity', (nextOpacity: number) => {
       const normalizedOpacity = clampStealthOpacity(Number(nextOpacity))
       setOpacity(normalizedOpacity)
       if (useWindowStore.getState().isStealthMode && Number(nextOpacity) < 1) {

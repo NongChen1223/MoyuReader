@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"log"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
@@ -44,7 +46,35 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 0},
-		OnStartup:        appInstance.Startup,
+		OnStartup: func(ctx context.Context) {
+			windowService.SetEventEmitter(func(eventName string, payload any) {
+				runtime.EventsEmit(ctx, eventName, payload)
+			})
+			appInstance.SetDirectoryPicker(func(defaultPath string) (string, error) {
+				return runtime.OpenDirectoryDialog(ctx, runtime.OpenDialogOptions{
+					Title:                "选择应用数据目录",
+					DefaultDirectory:     defaultPath,
+					CanCreateDirectories: true,
+					ShowHiddenFiles:      true,
+				})
+			})
+			novelService.SetFilePicker(func() (string, error) {
+				return runtime.OpenFileDialog(ctx, runtime.OpenDialogOptions{
+					Title: "选择小说文件",
+					Filters: []runtime.FileFilter{
+						{
+							DisplayName: "支持的文件",
+							Pattern:     "*.txt;*.epub;*.pdf;*.mobi;*.azw3",
+						},
+					},
+				})
+			})
+			appInstance.Startup(ctx)
+			runtime.EventsEmit(ctx, "app:ready", map[string]interface{}{
+				"version":     cfg.Version,
+				"environment": cfg.Environment,
+			})
+		},
 		OnShutdown:       appInstance.Shutdown,
 		Bind: []interface{}{
 			appInstance,

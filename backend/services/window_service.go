@@ -6,6 +6,8 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+type WindowEventEmitter func(eventName string, payload any)
+
 // WindowService 窗口服务
 // 负责窗口置顶、透明度、摸鱼模式等功能
 type WindowService struct {
@@ -21,6 +23,7 @@ type WindowService struct {
 	originalSize struct {
 		width, height int
 	}
+	eventEmitter WindowEventEmitter
 }
 
 // NewWindowService 创建窗口服务实例
@@ -33,6 +36,22 @@ func NewWindowService() *WindowService {
 // Init 初始化服务
 func (s *WindowService) Init(ctx context.Context) {
 	s.ctx = ctx
+}
+
+// SetEventEmitter 注入事件发射能力，避免服务层直接依赖具体桌面壳事件系统。
+func (s *WindowService) SetEventEmitter(eventEmitter WindowEventEmitter) {
+	s.eventEmitter = eventEmitter
+}
+
+func (s *WindowService) emitEvent(eventName string, payload any) {
+	if s.eventEmitter != nil {
+		s.eventEmitter(eventName, payload)
+		return
+	}
+
+	if s.ctx != nil {
+		runtime.EventsEmit(s.ctx, eventName, payload)
+	}
 }
 
 // Cleanup 清理资源
@@ -52,8 +71,7 @@ func (s *WindowService) Cleanup() {
 // SetAlwaysOnTop 设置窗口置顶
 func (s *WindowService) SetAlwaysOnTop(alwaysOnTop bool) error {
 	s.isAlwaysOnTop = alwaysOnTop
-	// Wails v2 的窗口置顶功能
-	// 注意：需要在运行时调用，编译时无法直接设置
+	// 旧桌面壳仍通过运行时窗口 API 设置置顶。
 	runtime.WindowSetAlwaysOnTop(s.ctx, alwaysOnTop)
 	return nil
 }
@@ -75,7 +93,7 @@ func (s *WindowService) SetOpacity(opacity float64) error {
 	s.opacity = opacity
 
 	// 发送透明度变化事件到前端
-	runtime.EventsEmit(s.ctx, "window:opacity", opacity)
+	s.emitEvent("window:opacity", opacity)
 	return nil
 }
 
@@ -91,7 +109,7 @@ func (s *WindowService) EnableStealthMode() error {
 	s.SetAlwaysOnTop(true)
 	s.SetOpacity(0.3) // 默认透明度
 
-	runtime.EventsEmit(s.ctx, "window:stealthMode", true)
+	s.emitEvent("window:stealthMode", true)
 	return nil
 }
 
@@ -105,7 +123,7 @@ func (s *WindowService) DisableStealthMode() error {
 	s.SetAlwaysOnTop(false)
 	s.SetOpacity(1.0)
 
-	runtime.EventsEmit(s.ctx, "window:stealthMode", false)
+	s.emitEvent("window:stealthMode", false)
 	return nil
 }
 
@@ -133,8 +151,8 @@ func (s *WindowService) ShowDesktopReaderOverlay(
 	s.opacity = opacity
 	showDesktopReaderOverlay(text, fontSize, lineHeight, opacity, red, green, blue)
 
-	runtime.EventsEmit(s.ctx, "window:stealthMode", true)
-	runtime.EventsEmit(s.ctx, "window:opacity", opacity)
+	s.emitEvent("window:stealthMode", true)
+	s.emitEvent("window:opacity", opacity)
 	return nil
 }
 
@@ -154,7 +172,7 @@ func (s *WindowService) UpdateDesktopReaderOverlay(
 
 	s.opacity = opacity
 	updateDesktopReaderOverlay(text, fontSize, lineHeight, opacity, red, green, blue)
-	runtime.EventsEmit(s.ctx, "window:opacity", opacity)
+	s.emitEvent("window:opacity", opacity)
 	return nil
 }
 
@@ -166,7 +184,7 @@ func (s *WindowService) UpdateDesktopReaderOverlayOpacity(opacity float64) error
 
 	s.opacity = opacity
 	updateDesktopReaderOverlayOpacity(opacity)
-	runtime.EventsEmit(s.ctx, "window:opacity", opacity)
+	s.emitEvent("window:opacity", opacity)
 	return nil
 }
 
@@ -234,8 +252,8 @@ func (s *WindowService) HideDesktopReaderOverlay() error {
 	s.isStealthMode = false
 	s.opacity = 1.0
 
-	runtime.EventsEmit(s.ctx, "window:stealthMode", false)
-	runtime.EventsEmit(s.ctx, "window:opacity", 1.0)
+	s.emitEvent("window:stealthMode", false)
+	s.emitEvent("window:opacity", 1.0)
 	return nil
 }
 
@@ -262,7 +280,7 @@ func (s *WindowService) OnMouseEnter() {
 	s.isMouseInWindow = true
 	if s.isStealthMode {
 		// 摸鱼模式下，鼠标进入时显示内容
-		runtime.EventsEmit(s.ctx, "window:mouseEnter", true)
+		s.emitEvent("window:mouseEnter", true)
 	}
 }
 
@@ -271,7 +289,7 @@ func (s *WindowService) OnMouseLeave() {
 	s.isMouseInWindow = false
 	if s.isStealthMode {
 		// 摸鱼模式下，鼠标离开时隐藏内容
-		runtime.EventsEmit(s.ctx, "window:mouseLeave", true)
+		s.emitEvent("window:mouseLeave", true)
 	}
 }
 

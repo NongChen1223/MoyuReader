@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { message } from 'antd'
 import { Folder, HardDrive, LaptopMinimal, MapPinned } from 'lucide-react'
 import Button from '@/components/common/Button'
-import { GetConfig, SelectDataDir, SetDataDir } from '@/wailsjs/go/app/App'
+import { desktopBridge } from '@/bridge'
 import styles from './StorageSettings.module.scss'
 
 /**
@@ -19,9 +19,9 @@ export default function StorageSettings() {
 
     const loadConfig = async () => {
       try {
-        const config = await GetConfig()
+        const config = await desktopBridge.app.getConfig()
         if (!disposed) {
-          setDataDir(config.data_dir || '')
+          setDataDir(config.dataDir || '')
         }
       } catch (error) {
         if (!disposed) {
@@ -44,13 +44,13 @@ export default function StorageSettings() {
   const handleSelectDirectory = async () => {
     try {
       setIsSubmitting(true)
-      const selectedDir = await SelectDataDir()
+      const selectedDir = await desktopBridge.app.selectDataDir()
       if (!selectedDir) {
         return
       }
 
-      const updatedConfig = await SetDataDir(selectedDir)
-      setDataDir(updatedConfig.data_dir || selectedDir)
+      const updatedConfig = await desktopBridge.app.setDataDir(selectedDir)
+      setDataDir(updatedConfig.dataDir || selectedDir)
       messageApi.success('本地存储路径已更新')
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : '更新存储路径失败')

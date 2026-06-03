@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MoyuReader Overlay</title>
+    <link rel="stylesheet" href="./overlay.css" />
+  </head>
+  <body>
+    <div id="app" class="overlay">
+      <div id="hover-frame" class="overlay-hover-frame"></div>
+      <header class="overlay-header">
+        <div class="overlay-actions">
+          <button id="prev-button" type="button">上一章</button>
+          <div class="chapter-picker">
+            <button
+              id="chapter-toggle-button"
+              class="chapter-toggle-button"
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+            >
+              目录
+            </button>
+            <div id="chapter-panel" class="chapter-panel" hidden>
+              <div class="chapter-panel-header">章节目录</div>
+              <div id="chapter-list" class="chapter-list" role="listbox" aria-label="章节目录"></div>
+            </div>
+          </div>
+          <button id="next-button" type="button">下一章</button>
+          <button id="camouflage-button" type="button">挂件关</button>
+          <button id="close-button" type="button">关闭</button>
+        </div>
+      </header>
+      <main id="content" class="overlay-content"></main>
+      <footer class="overlay-footer">
+        <label class="slider-group">
+          <span>透明度</span>
+          <input id="opacity-input" type="range" min="0.02" max="1" step="0.01" />
+        </label>
+        <label class="slider-group">
+          <span>本章进度</span>
+          <input id="progress-input" type="range" min="0" max="100" step="1" />
+        </label>
+        <span id="progress-label" class="progress-label">0%</span>
+      </footer>
+      <div id="resize-handle" class="overlay-resize-handle" aria-hidden="true"></div>
+      <div class="resize-edge resize-edge-top" data-resize-direction="top"></div>
+      <div class="resize-edge resize-edge-right" data-resize-direction="right"></div>
+      <div class="resize-edge resize-edge-bottom" data-resize-direction="bottom"></div>
+      <div class="resize-edge resize-edge-left" data-resize-direction="left"></div>
+      <div class="resize-edge resize-corner-top-left" data-resize-direction="top-left"></div>
+      <div class="resize-edge resize-corner-top-right" data-resize-direction="top-right"></div>
+      <div class="resize-edge resize-corner-bottom-right" data-resize-direction="bottom-right"></div>
+      <div class="resize-edge resize-corner-bottom-left" data-resize-direction="bottom-left"></div>
+    </div>
+    <script type="module" src="./overlay.js"></script>
+  </body>
+  </html>

@@ -29,8 +29,8 @@ import Input from '@/components/common/Input'
 import Button from '@/components/common/Button'
 import ImportModal, { type ModalOption } from '@/components/features/ImportModal'
 import SelectFilesModal from '@/components/features/SelectFilesModal'
+import { desktopBridge } from '@/bridge'
 import { openNovel } from '@/services/novelBridge'
-import { DeleteProgress } from '@/wailsjs/go/services/ProgressService'
 import { useLibraryStore } from '@/stores/libraryStore'
 import { formatBookCategory, mapNovelToBook, normalizeNovel } from '@/utils/novel'
 import styles from './Home.module.scss'
@@ -398,6 +398,7 @@ export default function Home() {
     const readerState = {
       filePath,
       ...(options?.activateBossMode ? { activateBossMode: true } : {}),
+      ...(options?.activateBossMode ? { bossModeEntry: 'home' } : {}),
       ...(options?.sourceDirectoryId ? { returnDirectoryId: options.sourceDirectoryId } : {}),
     }
 
@@ -644,7 +645,9 @@ export default function Home() {
         : []
     const uniqueProgressFilePaths = [...new Set(progressFilePaths)]
 
-    await Promise.allSettled(uniqueProgressFilePaths.map((filePath) => DeleteProgress(filePath)))
+    await Promise.allSettled(
+      uniqueProgressFilePaths.map((filePath) => desktopBridge.progress.deleteProgress(filePath))
+    )
 
     if (targetBook.parentDirectoryId) {
       removeFileFromDirectory(targetBook.parentDirectoryId, targetBook.id)

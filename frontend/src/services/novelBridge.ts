@@ -1,8 +1,4 @@
-import {
-  OpenNovel as rawOpenNovel,
-  SaveReadingProgress as rawSaveReadingProgress,
-  SetCurrentChapter as rawSetCurrentChapter,
-} from '@/wailsjs/go/services/NovelService'
+import { desktopBridge } from '@/bridge'
 import type { ChapterContentPayload, SearchResult } from '@/types'
 
 const BRIDGE_RETRY_DELAY_MS = 120
@@ -42,7 +38,7 @@ function normalizeNovelServiceError(error: unknown, fallbackMessage: string) {
   return new Error(message || fallbackMessage)
 }
 
-// Wails 绑定在窗口刚初始化时可能尚未挂载完成，这类错误允许短暂重试。
+// 桌面 bridge 在窗口刚初始化时可能尚未挂载完成，这类错误允许短暂重试。
 function shouldRetryNovelService(error: unknown) {
   const message = getNovelServiceErrorMessage(error).toLowerCase()
   return (
@@ -52,7 +48,8 @@ function shouldRetryNovelService(error: unknown) {
     message.includes('novelservice') ||
     message.includes('go is undefined') ||
     message.includes('undefined is not an object') ||
-    message.includes('cannot read properties of undefined')
+    message.includes('cannot read properties of undefined') ||
+    message.includes('bridge 不可用')
   )
 }
 
@@ -79,9 +76,15 @@ async function callNovelServiceWithRetry<T>(operation: () => Promise<T>): Promis
   throw normalizeNovelServiceError(lastError, '小说服务调用失败')
 }
 
-// 打开小说文件；传空路径时由后端弹出系统文件选择器。
+// 打开小说文件；传空路径时先由桌面宿主选择文件，再把真实路径传给后端。
 export function openNovel(filePath: string) {
-  return callNovelServiceWithRetry(() => rawOpenNovel(filePath))
+  return callNovelServiceWithRetry(async () => {
+    const resolvedFilePath = filePath || (await desktopBridge.app.selectNovelFile())
+    if (!resolvedFilePath.trim()) {
+      throw new Error('未选择文件')
+    }
+    return desktopBridge.novel.openNovel(resolvedFilePath)
+  })
 }
 
 // 持久化当前章节和进度，供继续阅读、书架进度展示等场景复用。
@@ -92,54 +95,25 @@ export function saveReadingProgress(
   progress: number
 ) {
   return callNovelServiceWithRetry(() =>
-    rawSaveReadingProgress(filePath, chapterIndex, position, progress)
+    desktopBridge.novel.saveReadingProgress(filePath, chapterIndex, position, progress)
   )
 }
 
 // 仅同步后端记录的当前章节，不负责加载正文内容。
 export function setCurrentChapter(filePath: string, chapterIndex: number) {
-  return callNovelServiceWithRetry(() => rawSetCurrentChapter(filePath, chapterIndex))
+  return callNovelServiceWithRetry(() =>
+    desktopBridge.novel.setCurrentChapter(filePath, chapterIndex)
+  )
 }
 
 export function searchNovel(filePath: string, keyword: string, caseSensitive = false) {
-  return callNovelServiceWithRetry(
-    () =>
-      (
-        window as Window & {
-          go?: {
-            services?: {
-              NovelService?: {
-                SearchNovel?: (
-                  filePath: string,
-                  keyword: string,
-                  caseSensitive: boolean
-                ) => Promise<SearchResult[]>
-              }
-            }
-          }
-        }
-      ).go?.services?.NovelService?.SearchNovel?.(filePath, keyword, caseSensitive) ??
-      Promise.reject(new Error('SearchNovel 方法不可用'))
+  return callNovelServiceWithRetry(() =>
+    desktopBridge.novel.searchNovel(filePath, keyword, caseSensitive)
   )
 }
 
 export function getChapterContentPayload(filePath: string, chapterIndex: number) {
-  return callNovelServiceWithRetry(
-    () =>
-      (
-        window as Window & {
-          go?: {
-            services?: {
-              NovelService?: {
-                GetChapterContentPayload?: (
-                  filePath: string,
-                  chapterIndex: number
-                ) => Promise<ChapterContentPayload>
-              }
-            }
-          }
-        }
-      ).go?.services?.NovelService?.GetChapterContentPayload?.(filePath, chapterIndex) ??
-      Promise.reject(new Error('GetChapterContentPayload 方法不可用'))
+  return callNovelServiceWithRetry(() =>
+    desktopBridge.novel.getChapterContentPayload(filePath, chapterIndex)
   )
 }

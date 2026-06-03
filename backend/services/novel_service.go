@@ -20,9 +20,10 @@ import (
 
 	pdf "github.com/ledongthuc/pdf"
 	"github.com/nongchen1223/moyureader/backend/models"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	xhtml "golang.org/x/net/html"
 )
+
+type NovelFilePicker func() (string, error)
 
 // NovelService 小说服务
 type NovelService struct {
@@ -32,6 +33,7 @@ type NovelService struct {
 	pdfChapterHTML  map[string][]string      // 图片型 PDF 页面富文本缓存
 	currentNovel    *models.Novel            // 当前打开的小说
 	progressService *ProgressService
+	filePicker      NovelFilePicker
 }
 
 const (
@@ -63,6 +65,11 @@ func NewNovelService(progressService *ProgressService) *NovelService {
 	}
 }
 
+// SetFilePicker 注入桌面端文件选择能力，避免业务服务直接依赖具体桌面壳。
+func (s *NovelService) SetFilePicker(filePicker NovelFilePicker) {
+	s.filePicker = filePicker
+}
+
 // Init 初始化服务
 func (s *NovelService) Init(ctx context.Context) {
 	s.ctx = ctx
@@ -82,15 +89,11 @@ func (s *NovelService) Cleanup() {
 // @return 小说信息和错误
 func (s *NovelService) OpenNovel(filePath string) (*models.Novel, error) {
 	if filePath == "" {
-		selectedFile, err := runtime.OpenFileDialog(s.ctx, runtime.OpenDialogOptions{
-			Title: "选择小说文件",
-			Filters: []runtime.FileFilter{
-				{
-					DisplayName: "支持的文件",
-					Pattern:     "*.txt;*.epub;*.pdf;*.mobi;*.azw3",
-				},
-			},
-		})
+		if s.filePicker == nil {
+			return nil, fmt.Errorf("未提供文件路径，且当前桌面入口未注入文件选择器")
+		}
+
+		selectedFile, err := s.filePicker()
 		if err != nil {
 			return nil, fmt.Errorf("打开文件选择器失败: %w", err)
 		}
