@@ -11,25 +11,29 @@
       <div id="hover-frame" class="overlay-hover-frame"></div>
       <header class="overlay-header">
         <div class="overlay-actions">
-          <button id="prev-button" type="button">上一章</button>
-          <div class="chapter-picker">
-            <button
-              id="chapter-toggle-button"
-              class="chapter-toggle-button"
-              type="button"
-              aria-haspopup="dialog"
-              aria-expanded="false"
-            >
-              目录
-            </button>
-            <div id="chapter-panel" class="chapter-panel" hidden>
-              <div class="chapter-panel-header">章节目录</div>
-              <div id="chapter-list" class="chapter-list" role="listbox" aria-label="章节目录"></div>
+          <div class="overlay-action-group overlay-nav-group">
+            <button id="prev-button" class="overlay-button" type="button">上一章</button>
+            <div class="chapter-picker">
+              <button
+                id="chapter-toggle-button"
+                class="overlay-button chapter-toggle-button"
+                type="button"
+                aria-haspopup="dialog"
+                aria-expanded="false"
+              >
+                目录
+              </button>
+              <div id="chapter-panel" class="chapter-panel" hidden>
+                <div class="chapter-panel-header">章节目录</div>
+                <div id="chapter-list" class="chapter-list" role="listbox" aria-label="章节目录"></div>
+              </div>
             </div>
+            <button id="next-button" class="overlay-button" type="button">下一章</button>
           </div>
-          <button id="next-button" type="button">下一章</button>
-          <button id="camouflage-button" type="button">挂件关</button>
-          <button id="close-button" type="button">关闭</button>
+          <div class="overlay-action-group overlay-window-group">
+            <button id="camouflage-button" class="overlay-button" type="button">挂件关</button>
+            <button id="close-button" class="overlay-button overlay-close-button" type="button">关闭</button>
+          </div>
         </div>
       </header>
       <main id="content" class="overlay-content"></main>

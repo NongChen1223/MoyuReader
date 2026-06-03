@@ -373,7 +373,7 @@ function updateEdgeResizeCursor(event) {
   overlayElement.style.cursor = getCursorForResizeDirection(direction)
 }
 
-function shouldStartContentDrag(event) {
+function shouldStartOverlayDrag(event) {
   if (!(event.target instanceof HTMLElement)) {
     return false
   }
@@ -386,11 +386,13 @@ function shouldStartContentDrag(event) {
     return false
   }
 
-  const rect = contentElement.getBoundingClientRect()
-  const inVerticalScrollbar = event.clientX >= rect.right - SCROLLBAR_HIT_WIDTH
-  const inHorizontalScrollbar = event.clientY >= rect.bottom - SCROLLBAR_HIT_WIDTH
-  if (inVerticalScrollbar || inHorizontalScrollbar) {
-    return false
+  if (event.target.closest('.overlay-content')) {
+    const rect = contentElement.getBoundingClientRect()
+    const inVerticalScrollbar = event.clientX >= rect.right - SCROLLBAR_HIT_WIDTH
+    const inHorizontalScrollbar = event.clientY >= rect.bottom - SCROLLBAR_HIT_WIDTH
+    if (inVerticalScrollbar || inHorizontalScrollbar) {
+      return false
+    }
   }
 
   return true
@@ -454,8 +456,8 @@ function handleContentDragEnd() {
   stopDragSession()
 }
 
-function beginContentDrag(event) {
-  if (!shouldStartContentDrag(event)) {
+function beginOverlayDrag(event) {
+  if (!shouldStartOverlayDrag(event)) {
     return
   }
 
@@ -687,10 +689,6 @@ contentElement.addEventListener('click', () => {
   bumpChromeVisibility()
 })
 
-contentElement.addEventListener('pointerdown', (event) => {
-  beginContentDrag(event)
-})
-
 contentElement.addEventListener('scroll', () => {
   if (state.isProgrammaticScroll) {
     return
@@ -753,11 +751,12 @@ overlayElement.addEventListener('pointermove', (event) => {
 
 overlayElement.addEventListener('pointerdown', (event) => {
   const direction = getResizeDirection(event)
-  if (!direction) {
+  if (direction) {
+    void beginResize(event, direction)
     return
   }
 
-  void beginResize(event, direction)
+  beginOverlayDrag(event)
 })
 
 overlayElement.addEventListener('pointerenter', (event) => {
