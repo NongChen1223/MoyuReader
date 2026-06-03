@@ -431,14 +431,19 @@ function registerIpcHandlers() {
     }
 
     const currentBounds = overlayWindow.getBounds()
+    const allowSmallBounds = Boolean(bounds.allowSmall)
+    overlayWindow.setMinimumSize(
+      allowSmallBounds ? 60 : 520,
+      allowSmallBounds ? 56 : 220
+    )
     overlayWindow.setBounds({
       x: Number.isFinite(bounds.x) ? Math.round(bounds.x) : currentBounds.x,
       y: Number.isFinite(bounds.y) ? Math.round(bounds.y) : currentBounds.y,
       width: Number.isFinite(bounds.width)
-        ? Math.max(520, Math.round(bounds.width))
+        ? Math.max(allowSmallBounds ? 60 : 520, Math.round(bounds.width))
         : currentBounds.width,
       height: Number.isFinite(bounds.height)
-        ? Math.max(220, Math.round(bounds.height))
+        ? Math.max(allowSmallBounds ? 56 : 220, Math.round(bounds.height))
         : currentBounds.height,
     })
   })

@@ -7,6 +7,7 @@ const prevButton = document.getElementById('prev-button')
 const nextButton = document.getElementById('next-button')
 const closeButton = document.getElementById('close-button')
 const camouflageButton = document.getElementById('camouflage-button')
+const camouflagePendant = document.getElementById('camouflage-pendant')
 const appearanceButton = document.getElementById('appearance-button')
 const appearancePanel = document.getElementById('appearance-panel')
 const appearanceCloseButton = document.getElementById('appearance-close-button')
@@ -34,6 +35,10 @@ const state = {
   textColor: '#f4f7fc',
   theme: 'dark',
   camouflageEnabled: false,
+  camouflageCollapsed: false,
+  expandedBounds: null,
+  expandedBoundsApplied: false,
+  camouflageRestoreCooldownUntil: 0,
   isProgrammaticScroll: false,
   readingLocationFrame: 0,
   chromeVisible: false,
@@ -43,6 +48,7 @@ const state = {
   appearancePanelOpen: false,
   dragSession: null,
   isDragging: false,
+  suppressPendantClick: false,
   resizeSession: null,
   isResizing: false,
   isDraggingProgress: false,
@@ -64,9 +70,79 @@ const MIN_OVERLAY_HEIGHT = 220
 const EDGE_RESIZE_WIDTH = 18
 const USER_SCROLL_POSITION_GUARD_MS = 1000
 const OPACITY_INPUT_GUARD_MS = 900
+const CAMOUFLAGE_PENDANT_WIDTH = 86
+const CAMOUFLAGE_PENDANT_HEIGHT = 76
+const OVERLAY_BOUNDS_STORAGE_KEY = 'moyureader-overlay-expanded-bounds'
 
 function emitAction(action) {
   window.moyuOverlay?.emitAction(action)
+}
+
+function normalizeStoredBounds(bounds) {
+  if (!bounds || typeof bounds !== 'object') {
+    return null
+  }
+
+  const x = Number(bounds.x)
+  const y = Number(bounds.y)
+  const width = Number(bounds.width)
+  const height = Number(bounds.height)
+  if (![x, y, width, height].every(Number.isFinite)) {
+    return null
+  }
+
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    width: Math.max(MIN_OVERLAY_WIDTH, Math.round(width)),
+    height: Math.max(MIN_OVERLAY_HEIGHT, Math.round(height)),
+  }
+}
+
+function readStoredExpandedBounds() {
+  try {
+    return normalizeStoredBounds(JSON.parse(localStorage.getItem(OVERLAY_BOUNDS_STORAGE_KEY) || 'null'))
+  } catch {
+    return null
+  }
+}
+
+function saveExpandedBounds(bounds) {
+  const normalizedBounds = normalizeStoredBounds(bounds)
+  if (!normalizedBounds) {
+    return
+  }
+
+  state.expandedBounds = normalizedBounds
+  try {
+    localStorage.setItem(OVERLAY_BOUNDS_STORAGE_KEY, JSON.stringify(normalizedBounds))
+  } catch {
+    // localStorage may be unavailable in unusual Electron profiles; bounds memory is best-effort.
+  }
+}
+
+function getBoundsCenter(bounds) {
+  return {
+    x: Number(bounds.x || 0) + Number(bounds.width || 0) / 2,
+    y: Number(bounds.y || 0) + Number(bounds.height || 0) / 2,
+  }
+}
+
+async function applyStoredExpandedBounds() {
+  if (state.camouflageCollapsed) {
+    return
+  }
+
+  const bounds = readStoredExpandedBounds()
+  if (!bounds) {
+    return
+  }
+
+  state.expandedBounds = bounds
+  await window.moyuOverlay?.setBounds?.({
+    ...bounds,
+    allowSmall: false,
+  })
 }
 
 function releaseExternalPositionGuard() {
@@ -83,6 +159,9 @@ function clampUnitInterval(value) {
 }
 
 function setChromeVisible(visible) {
+  if (state.camouflageCollapsed) {
+    visible = false
+  }
   state.chromeVisible = visible
   overlayElement.classList.toggle('chrome-visible', visible)
 }
@@ -114,6 +193,10 @@ function bumpChromeVisibility() {
 }
 
 function updateChromeByPointer(event) {
+  if (state.camouflageCollapsed) {
+    return
+  }
+
   if (state.chapterPanelOpen || state.appearancePanelOpen || state.isDragging || state.isResizing) {
     setChromeVisible(true)
     clearChromeTimer()
@@ -130,6 +213,9 @@ function updateChromeByPointer(event) {
 }
 
 function setChapterPanelOpen(open) {
+  if (state.camouflageCollapsed) {
+    open = false
+  }
   state.chapterPanelOpen = open
   chapterPanel.hidden = !open
   chapterToggleButton.setAttribute('aria-expanded', open ? 'true' : 'false')
@@ -144,6 +230,9 @@ function setChapterPanelOpen(open) {
 }
 
 function setAppearancePanelOpen(open) {
+  if (state.camouflageCollapsed) {
+    open = false
+  }
   state.appearancePanelOpen = open
   appearancePanel.hidden = !open
   appearanceButton.classList.toggle('is-active', open)
@@ -351,6 +440,64 @@ function updateChapterSelection() {
   })
 }
 
+async function collapseToCamouflagePendant() {
+  if (state.camouflageCollapsed || state.isResizing) {
+    return
+  }
+
+  const bounds = await window.moyuOverlay?.getBounds?.()
+  if (bounds) {
+    saveExpandedBounds(bounds)
+    const center = getBoundsCenter(bounds)
+    await window.moyuOverlay?.setBounds?.({
+      x: Math.round(center.x - CAMOUFLAGE_PENDANT_WIDTH / 2),
+      y: Math.round(center.y - CAMOUFLAGE_PENDANT_HEIGHT / 2),
+      width: CAMOUFLAGE_PENDANT_WIDTH,
+      height: CAMOUFLAGE_PENDANT_HEIGHT,
+      allowSmall: true,
+    })
+  }
+
+  setChapterPanelOpen(false)
+  setAppearancePanelOpen(false)
+  state.camouflageCollapsed = true
+  overlayElement.classList.add('is-camouflage-collapsed')
+  camouflagePendant.hidden = false
+  setChromeVisible(false)
+  clearChromeTimer()
+}
+
+async function restoreFromCamouflagePendant() {
+  if (!state.camouflageCollapsed) {
+    return
+  }
+
+  const bounds = state.expandedBounds || readStoredExpandedBounds()
+  const pendantBounds = await window.moyuOverlay?.getBounds?.()
+  if (bounds && pendantBounds) {
+    const center = getBoundsCenter(pendantBounds)
+    await window.moyuOverlay?.setBounds?.({
+      x: Math.round(center.x - bounds.width / 2),
+      y: Math.round(center.y - bounds.height / 2),
+      width: Math.round(bounds.width),
+      height: Math.round(bounds.height),
+      allowSmall: false,
+    })
+  } else if (bounds) {
+    await window.moyuOverlay?.setBounds?.({
+      ...bounds,
+      allowSmall: false,
+    })
+  }
+
+  state.camouflageCollapsed = false
+  state.camouflageRestoreCooldownUntil = Date.now() + 900
+  overlayElement.classList.remove('is-camouflage-collapsed')
+  camouflagePendant.hidden = true
+  bumpChromeVisibility()
+  publishReadingLocation()
+}
+
 function scrollToReadingLocation(chapterIndex, progress) {
   const section = contentElement.querySelector(`[data-overlay-chapter-index="${chapterIndex}"]`)
   if (!section) {
@@ -478,6 +625,10 @@ function shouldStartOverlayDrag(event) {
     return false
   }
 
+  if (event.target.closest('.camouflage-pendant')) {
+    return event.button === 0 && !state.isResizing
+  }
+
   if (
     event.button !== 0 ||
     state.isResizing ||
@@ -508,6 +659,12 @@ function stopDragSession() {
   window.removeEventListener('pointercancel', handleContentDragEnd)
   contentElement.classList.remove('is-dragging')
   window.moyuOverlay?.endDrag()
+  if (state.dragSession.started && state.dragSession.isPendant) {
+    state.suppressPendantClick = true
+    window.setTimeout(() => {
+      state.suppressPendantClick = false
+    }, 0)
+  }
   state.dragSession = null
   state.isDragging = false
   scheduleChromeHide(260)
@@ -554,6 +711,9 @@ function handleContentDragMove(event) {
 
 function handleContentDragEnd() {
   stopDragSession()
+  if (!state.camouflageCollapsed) {
+    window.moyuOverlay?.getBounds?.().then(saveExpandedBounds).catch(() => {})
+  }
 }
 
 function beginOverlayDrag(event) {
@@ -563,6 +723,7 @@ function beginOverlayDrag(event) {
 
   state.dragSession = {
     started: false,
+    isPendant: Boolean(event.target.closest('.camouflage-pendant')),
     startScreenX: event.screenX,
     startScreenY: event.screenY,
   }
@@ -636,6 +797,9 @@ function handleResizeMove(event) {
 
 function handleResizeEnd() {
   stopResizeSession()
+  if (!state.camouflageCollapsed) {
+    window.moyuOverlay?.getBounds?.().then(saveExpandedBounds).catch(() => {})
+  }
 }
 
 async function beginResize(event, direction = getResizeDirection(event)) {
@@ -701,6 +865,11 @@ function scrollContentBy(deltaY) {
 
 window.moyuOverlay?.onState((payload) => {
   if (payload.type === 'content') {
+    if (!state.expandedBoundsApplied) {
+      state.expandedBoundsApplied = true
+      void applyStoredExpandedBounds()
+    }
+
     const nextHtml = extractRenderableContent(payload.html)
     if (nextHtml !== state.lastContentHtml) {
       const previousReadingLocation = resolveReadingLocation()
@@ -735,6 +904,9 @@ window.moyuOverlay?.onState((payload) => {
     state.chapters = Array.isArray(payload.chapters) ? payload.chapters : []
     state.currentChapter = Number(payload.currentChapter || 0)
     state.camouflageEnabled = Boolean(payload.camouflageEnabled)
+    if (!state.camouflageEnabled && state.camouflageCollapsed) {
+      void restoreFromCamouflagePendant()
+    }
     renderChapterOptions(state.chapters, state.currentChapter)
     applyOpacity(payload.opacity || state.opacity, { fromRemote: true })
     camouflageButton.textContent = state.camouflageEnabled ? '挂件开' : '挂件关'
@@ -897,6 +1069,15 @@ overlayElement.addEventListener('pointerenter', (event) => {
 })
 
 overlayElement.addEventListener('mouseleave', () => {
+  if (Date.now() < state.camouflageRestoreCooldownUntil) {
+    return
+  }
+
+  if (state.camouflageEnabled && !state.camouflageCollapsed) {
+    void collapseToCamouflagePendant()
+    return
+  }
+
   if (state.chapterPanelOpen || state.appearancePanelOpen) {
     return
   }
@@ -935,9 +1116,32 @@ closeButton.addEventListener('click', () => {
   publishReadingLocationNow()
   emitAction({ type: 'close' })
 })
-camouflageButton.addEventListener('click', () =>
-  emitAction({ type: 'camouflage', value: state.camouflageEnabled ? 0 : 1 })
-)
+camouflageButton.addEventListener('click', () => {
+  const nextEnabled = !state.camouflageEnabled
+  state.camouflageEnabled = nextEnabled
+  camouflageButton.textContent = nextEnabled ? '挂件开' : '挂件关'
+  emitAction({ type: 'camouflage', value: nextEnabled ? 1 : 0 })
+
+  if (nextEnabled) {
+    void collapseToCamouflagePendant()
+    return
+  }
+
+  void restoreFromCamouflagePendant()
+})
+
+camouflagePendant.addEventListener('click', (event) => {
+  event.preventDefault()
+  if (state.isDragging || state.suppressPendantClick) {
+    return
+  }
+
+  void restoreFromCamouflagePendant()
+})
+
+camouflagePendant.addEventListener('pointerdown', (event) => {
+  beginOverlayDrag(event)
+})
 opacityInput.addEventListener('input', () => {
   const value = Number(opacityInput.value || 0.3)
   state.lastOpacityInputAt = Date.now()
