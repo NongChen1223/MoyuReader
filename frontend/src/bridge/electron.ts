@@ -84,26 +84,54 @@ const windowBridge: WindowBridge = {
   supportsDesktopReaderOverlay() {
     return getElectronDesktopApi().window.supportsDesktopReaderOverlay()
   },
-  showDesktopReaderOverlay(text, fontSize, lineHeight, opacity, red, green, blue) {
+  showDesktopReaderOverlay(
+    text,
+    fontSize,
+    fontWeight,
+    lineHeight,
+    opacity,
+    red,
+    green,
+    blue,
+    theme,
+    backgroundColor
+  ) {
     return getElectronDesktopApi().window.showDesktopReaderOverlay(
       text,
       fontSize,
+      fontWeight,
       lineHeight,
       opacity,
       red,
       green,
-      blue
+      blue,
+      theme,
+      backgroundColor
     )
   },
-  updateDesktopReaderOverlay(text, fontSize, lineHeight, opacity, red, green, blue) {
+  updateDesktopReaderOverlay(
+    text,
+    fontSize,
+    fontWeight,
+    lineHeight,
+    opacity,
+    red,
+    green,
+    blue,
+    theme,
+    backgroundColor
+  ) {
     return getElectronDesktopApi().window.updateDesktopReaderOverlay(
       text,
       fontSize,
+      fontWeight,
       lineHeight,
       opacity,
       red,
       green,
-      blue
+      blue,
+      theme,
+      backgroundColor
     )
   },
   updateDesktopReaderOverlayOpacity(opacity) {
@@ -136,8 +164,8 @@ const windowBridge: WindowBridge = {
       progressValue
     )
   },
-  hideDesktopReaderOverlay() {
-    return getElectronDesktopApi().window.hideDesktopReaderOverlay()
+  hideDesktopReaderOverlay(options) {
+    return getElectronDesktopApi().window.hideDesktopReaderOverlay(options)
   },
   isDesktopReaderOverlayVisible() {
     return getElectronDesktopApi().window.isDesktopReaderOverlayVisible()

@@ -31,11 +31,34 @@
             <button id="next-button" class="overlay-button" type="button">下一章</button>
           </div>
           <div class="overlay-action-group overlay-window-group">
+            <button id="appearance-button" class="overlay-button" type="button">外观</button>
             <button id="camouflage-button" class="overlay-button" type="button">挂件关</button>
             <button id="close-button" class="overlay-button overlay-close-button" type="button">关闭</button>
           </div>
         </div>
       </header>
+      <section id="appearance-panel" class="appearance-panel" hidden>
+        <div class="appearance-panel-header">
+          <span>阅读外观</span>
+          <button id="appearance-close-button" type="button">收起</button>
+        </div>
+        <label class="appearance-field">
+          <span id="font-size-label">字号 18px</span>
+          <input id="font-size-input" type="range" min="12" max="32" step="1" />
+        </label>
+        <label class="appearance-field">
+          <span id="font-weight-label">字重 400</span>
+          <input id="font-weight-input" type="range" min="300" max="900" step="100" />
+        </label>
+        <label class="appearance-field">
+          <span id="line-height-label">行高 1.8</span>
+          <input id="line-height-input" type="range" min="1" max="3" step="0.1" />
+        </label>
+        <label class="appearance-field appearance-color-field">
+          <span>文字颜色</span>
+          <input id="text-color-input" type="color" />
+        </label>
+      </section>
       <main id="content" class="overlay-content"></main>
       <footer class="overlay-footer">
         <label class="slider-group">

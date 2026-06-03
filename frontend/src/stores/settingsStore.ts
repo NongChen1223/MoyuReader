@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type {
+  BossReadingAppearance,
   CamouflageWidgetPosition,
   ReadingSettings,
   ShortcutAction,
@@ -16,6 +17,12 @@ const SETTINGS_STORAGE_NAME = 'moyureader-settings'
 const DEFAULT_CAMOUFLAGE_WIDGET_POSITION: CamouflageWidgetPosition = {
   x: 0.84,
   y: 0.16,
+}
+const DEFAULT_BOSS_READING_APPEARANCE: BossReadingAppearance = {
+  fontSize: 16,
+  fontWeight: 400,
+  lineHeight: 1.8,
+  textColor: '#E8EAF0',
 }
 
 export function normalizePageWidth(value: number) {
@@ -59,6 +66,7 @@ interface SettingsState extends ReadingSettings {
   keyboardShortcuts: ShortcutMap
   setFontSize: (size: number) => void
   setFontFamily: (family: string) => void
+  setFontWeight: (weight: number) => void
   setLineHeight: (height: number) => void
   setBackgroundColor: (color: string) => void
   setTextColor: (color: string) => void
@@ -69,6 +77,7 @@ interface SettingsState extends ReadingSettings {
   setBossHideDelay: (delay: number) => void
   setBossCamouflageEnabled: (enabled: boolean) => void
   setBossCamouflageWidgetPosition: (position: CamouflageWidgetPosition) => void
+  setBossReadingAppearance: (appearance: Partial<BossReadingAppearance>) => void
   setBossMode: (enabled: boolean) => void
   setBossOpacity: (opacity: number) => void
   setKeyboardShortcut: (action: ShortcutAction, shortcut: string) => void
@@ -79,6 +88,7 @@ interface SettingsState extends ReadingSettings {
 const defaultSettings: ReadingSettings = {
   fontSize: 18,
   fontFamily: 'system',
+  fontWeight: 400,
   lineHeight: 1.8,
   backgroundColor: '#ffffff',
   textColor: '#333333',
@@ -89,6 +99,7 @@ const defaultSettings: ReadingSettings = {
   bossHideDelay: 260,
   bossCamouflageEnabled: false,
   bossCamouflageWidgetPosition: DEFAULT_CAMOUFLAGE_WIDGET_POSITION,
+  bossReadingAppearance: DEFAULT_BOSS_READING_APPEARANCE,
 }
 
 const defaultBossSettings = {
@@ -98,6 +109,31 @@ const defaultBossSettings = {
 
 function normalizeBossOpacity(value: number) {
   return Math.max(0.02, Math.min(1, Number(value || 0.3)))
+}
+
+function normalizeFontWeight(value: number) {
+  return Math.max(300, Math.min(900, Math.round(Number(value || 400) / 100) * 100))
+}
+
+function normalizeBossReadingAppearance(
+  value?: Partial<BossReadingAppearance>
+): BossReadingAppearance {
+  return {
+    fontSize: Math.max(
+      12,
+      Math.min(32, Math.round(Number(value?.fontSize ?? DEFAULT_BOSS_READING_APPEARANCE.fontSize)))
+    ),
+    fontWeight: normalizeFontWeight(
+      value?.fontWeight ?? DEFAULT_BOSS_READING_APPEARANCE.fontWeight
+    ),
+    lineHeight: Math.max(
+      1,
+      Math.min(3, Number(value?.lineHeight ?? DEFAULT_BOSS_READING_APPEARANCE.lineHeight))
+    ),
+    textColor: /^#[0-9a-fA-F]{6}$/.test(value?.textColor || '')
+      ? String(value?.textColor).toUpperCase()
+      : DEFAULT_BOSS_READING_APPEARANCE.textColor,
+  }
 }
 
 // 从持久化配置中读取上一次摸鱼模式使用的透明度，避免重新进入时出现视觉跳变。
@@ -136,6 +172,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       setFontSize: (fontSize) => set({ fontSize }),
       setFontFamily: (fontFamily) => set({ fontFamily }),
+      setFontWeight: (fontWeight) => set({ fontWeight: normalizeFontWeight(fontWeight) }),
       setLineHeight: (lineHeight) => set({ lineHeight }),
       setBackgroundColor: (backgroundColor) => set({ backgroundColor }),
       setTextColor: (textColor) => set({ textColor }),
@@ -151,6 +188,13 @@ export const useSettingsStore = create<SettingsState>()(
             bossCamouflageWidgetPosition
           ),
         }),
+      setBossReadingAppearance: (bossReadingAppearance) =>
+        set((state) => ({
+          bossReadingAppearance: normalizeBossReadingAppearance({
+            ...state.bossReadingAppearance,
+            ...bossReadingAppearance,
+          }),
+        })),
       setBossMode: (bossMode) => set({ bossMode }),
       setBossOpacity: (bossOpacity) => set({ bossOpacity: normalizeBossOpacity(bossOpacity) }),
       setKeyboardShortcut: (action, shortcut) =>
@@ -183,12 +227,19 @@ export const useSettingsStore = create<SettingsState>()(
           pageWidth: normalizePageWidth(
             typedPersistedState.pageWidth ?? currentState.pageWidth
           ),
+          fontWeight: normalizeFontWeight(
+            typedPersistedState.fontWeight ?? currentState.fontWeight
+          ),
           bossCamouflageEnabled: Boolean(
             typedPersistedState.bossCamouflageEnabled ?? currentState.bossCamouflageEnabled
           ),
           bossCamouflageWidgetPosition: normalizeCamouflageWidgetPosition(
             typedPersistedState.bossCamouflageWidgetPosition ??
               currentState.bossCamouflageWidgetPosition
+          ),
+          bossReadingAppearance: normalizeBossReadingAppearance(
+            typedPersistedState.bossReadingAppearance ??
+              currentState.bossReadingAppearance
           ),
         }
       },

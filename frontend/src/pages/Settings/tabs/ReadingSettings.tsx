@@ -28,6 +28,7 @@ export default function ReadingSettings() {
   const {
     fontSize,
     fontFamily,
+    fontWeight,
     lineHeight,
     pageWidth,
     backgroundColor,
@@ -39,6 +40,7 @@ export default function ReadingSettings() {
     bossCamouflageEnabled,
     setFontSize,
     setFontFamily,
+    setFontWeight,
     setLineHeight,
     setPageWidth,
     setBackgroundColor,
@@ -57,12 +59,14 @@ export default function ReadingSettings() {
         <ReadingAppearanceControls
           fontSize={fontSize}
           fontFamily={fontFamily}
+          fontWeight={fontWeight}
           lineHeight={lineHeight}
           pageWidth={pageWidth}
           backgroundColor={backgroundColor}
           textColor={textColor}
           onFontSizeChange={setFontSize}
           onFontFamilyChange={setFontFamily}
+          onFontWeightChange={setFontWeight}
           onLineHeightChange={setLineHeight}
           onPageWidthChange={setPageWidth}
           onBackgroundColorChange={setBackgroundColor}
@@ -85,6 +89,7 @@ export default function ReadingSettings() {
                 ? 'var(--font-mono)'
                 : 'var(--font-sans)',
             lineHeight: lineHeight,
+            fontWeight,
             maxWidth: `${pageWidth}%`,
             backgroundColor: backgroundColor,
             color: textColor,

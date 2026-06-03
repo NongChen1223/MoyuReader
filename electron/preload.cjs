@@ -42,25 +42,53 @@ contextBridge.exposeInMainWorld('moyuDesktop', {
   },
   window: {
     supportsDesktopReaderOverlay: () => invoke('desktop:window:supportsDesktopReaderOverlay'),
-    showDesktopReaderOverlay: (text, fontSize, lineHeight, opacity, red, green, blue) =>
+    showDesktopReaderOverlay: (
+      text,
+      fontSize,
+      fontWeight,
+      lineHeight,
+      opacity,
+      red,
+      green,
+      blue,
+      theme,
+      backgroundColor
+    ) =>
       invoke('desktop:window:showDesktopReaderOverlay', {
         text,
         fontSize,
+        fontWeight,
         lineHeight,
         opacity,
         red,
         green,
         blue,
+        theme,
+        backgroundColor,
       }),
-    updateDesktopReaderOverlay: (text, fontSize, lineHeight, opacity, red, green, blue) =>
+    updateDesktopReaderOverlay: (
+      text,
+      fontSize,
+      fontWeight,
+      lineHeight,
+      opacity,
+      red,
+      green,
+      blue,
+      theme,
+      backgroundColor
+    ) =>
       invoke('desktop:window:updateDesktopReaderOverlay', {
         text,
         fontSize,
+        fontWeight,
         lineHeight,
         opacity,
         red,
         green,
         blue,
+        theme,
+        backgroundColor,
       }),
     updateDesktopReaderOverlayOpacity: (opacity) =>
       invoke('desktop:window:updateDesktopReaderOverlayOpacity', opacity),
@@ -87,7 +115,8 @@ contextBridge.exposeInMainWorld('moyuDesktop', {
         chapterIndex,
         progress,
       }),
-    hideDesktopReaderOverlay: () => invoke('desktop:window:hideDesktopReaderOverlay'),
+    hideDesktopReaderOverlay: (options) =>
+      invoke('desktop:window:hideDesktopReaderOverlay', options),
     isDesktopReaderOverlayVisible: () =>
       invoke('desktop:window:isDesktopReaderOverlayVisible'),
     enableStealthMode: () => invoke('desktop:window:enableStealthMode'),

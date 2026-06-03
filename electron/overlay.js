@@ -7,6 +7,16 @@ const prevButton = document.getElementById('prev-button')
 const nextButton = document.getElementById('next-button')
 const closeButton = document.getElementById('close-button')
 const camouflageButton = document.getElementById('camouflage-button')
+const appearanceButton = document.getElementById('appearance-button')
+const appearancePanel = document.getElementById('appearance-panel')
+const appearanceCloseButton = document.getElementById('appearance-close-button')
+const fontSizeInput = document.getElementById('font-size-input')
+const fontWeightInput = document.getElementById('font-weight-input')
+const lineHeightInput = document.getElementById('line-height-input')
+const textColorInput = document.getElementById('text-color-input')
+const fontSizeLabel = document.getElementById('font-size-label')
+const fontWeightLabel = document.getElementById('font-weight-label')
+const lineHeightLabel = document.getElementById('line-height-label')
 const opacityInput = document.getElementById('opacity-input')
 const progressInput = document.getElementById('progress-input')
 const progressLabel = document.getElementById('progress-label')
@@ -18,6 +28,11 @@ const state = {
   chapters: [],
   progress: 0,
   opacity: 0.3,
+  fontSize: 16,
+  fontWeight: 400,
+  lineHeight: 1.8,
+  textColor: '#f4f7fc',
+  theme: 'dark',
   camouflageEnabled: false,
   isProgrammaticScroll: false,
   readingLocationFrame: 0,
@@ -25,6 +40,7 @@ const state = {
   chromeTimer: 0,
   boundaryCooldownUntil: 0,
   chapterPanelOpen: false,
+  appearancePanelOpen: false,
   dragSession: null,
   isDragging: false,
   resizeSession: null,
@@ -84,7 +100,7 @@ function scheduleChromeHide(delay = CHROME_HIDE_DELAY_MS) {
   clearChromeTimer()
   state.chromeTimer = window.setTimeout(() => {
     state.chromeTimer = 0
-    if (state.chapterPanelOpen || state.isDragging || state.isResizing) {
+    if (state.chapterPanelOpen || state.appearancePanelOpen || state.isDragging || state.isResizing) {
       return
     }
 
@@ -98,7 +114,7 @@ function bumpChromeVisibility() {
 }
 
 function updateChromeByPointer(event) {
-  if (state.chapterPanelOpen || state.isDragging || state.isResizing) {
+  if (state.chapterPanelOpen || state.appearancePanelOpen || state.isDragging || state.isResizing) {
     setChromeVisible(true)
     clearChromeTimer()
     return
@@ -118,8 +134,22 @@ function setChapterPanelOpen(open) {
   chapterPanel.hidden = !open
   chapterToggleButton.setAttribute('aria-expanded', open ? 'true' : 'false')
   if (open) {
+    setAppearancePanelOpen(false)
     bumpChromeVisibility()
     scrollActiveChapterIntoView()
+    return
+  }
+
+  scheduleChromeHide(480)
+}
+
+function setAppearancePanelOpen(open) {
+  state.appearancePanelOpen = open
+  appearancePanel.hidden = !open
+  appearanceButton.classList.toggle('is-active', open)
+  if (open) {
+    setChapterPanelOpen(false)
+    bumpChromeVisibility()
     return
   }
 
@@ -187,6 +217,62 @@ function syncContentColor(color) {
   document.documentElement.style.setProperty('--content-color', color || 'rgba(244,247,252,0.98)')
 }
 
+function rgbToHex(red, green, blue) {
+  return [red, green, blue]
+    .map((value) => Math.max(0, Math.min(255, Number(value || 0))).toString(16).padStart(2, '0'))
+    .join('')
+    .replace(/^/, '#')
+}
+
+function normalizeHexColor(value, fallback = '#f4f7fc') {
+  const source = String(value || '').trim()
+  if (/^#[0-9a-fA-F]{6}$/.test(source)) {
+    return source
+  }
+
+  return fallback
+}
+
+function applyAppearance(appearance = {}, options = {}) {
+  const nextFontSize = Math.max(12, Math.min(32, Number(appearance.fontSize || state.fontSize)))
+  const nextFontWeight = Math.max(
+    300,
+    Math.min(900, Number(appearance.fontWeight || state.fontWeight))
+  )
+  const nextLineHeight = Math.max(1, Math.min(3, Number(appearance.lineHeight || state.lineHeight)))
+  const nextTextColor = normalizeHexColor(appearance.textColor, state.textColor)
+
+  state.fontSize = nextFontSize
+  state.fontWeight = nextFontWeight
+  state.lineHeight = nextLineHeight
+  state.textColor = nextTextColor
+
+  contentElement.style.fontSize = `${nextFontSize}px`
+  contentElement.style.fontWeight = String(nextFontWeight)
+  contentElement.style.lineHeight = String(nextLineHeight)
+  syncContentColor(nextTextColor)
+
+  fontSizeInput.value = String(nextFontSize)
+  fontWeightInput.value = String(nextFontWeight)
+  lineHeightInput.value = String(nextLineHeight)
+  textColorInput.value = nextTextColor
+  fontSizeLabel.textContent = `字号 ${Math.round(nextFontSize)}px`
+  fontWeightLabel.textContent = `字重 ${Math.round(nextFontWeight)}`
+  lineHeightLabel.textContent = `行高 ${nextLineHeight.toFixed(1)}`
+
+  if (options.emit) {
+    emitAction({
+      type: 'appearance',
+      value: {
+        fontSize: nextFontSize,
+        fontWeight: nextFontWeight,
+        lineHeight: nextLineHeight,
+        textColor: nextTextColor,
+      },
+    })
+  }
+}
+
 function updateProgressLabel(progress) {
   const safeProgress = Math.max(0, Math.min(100, Number(progress || 0)))
   progressInput.value = String(safeProgress)
@@ -217,7 +303,7 @@ function resolveReadingLocation() {
   }
 
   const rect = activeSection.getBoundingClientRect()
-  const sectionHeight = Math.max(activeSection.scrollHeight - contentElement.clientHeight * 0.18, 1)
+  const sectionHeight = Math.max(rect.height, 1)
   const progress = Math.max(0, Math.min(1, (anchorY - rect.top) / sectionHeight))
   const chapterIndex = Number(activeSection.getAttribute('data-overlay-chapter-index') || state.currentChapter)
   return { chapterIndex, progress }
@@ -240,8 +326,22 @@ function publishReadingLocation() {
   })
 }
 
+function publishReadingLocationNow() {
+  const readingLocation = resolveReadingLocation()
+  state.currentChapter = readingLocation.chapterIndex
+  updateChapterSelection()
+  if (!state.isDraggingProgress) {
+    updateProgressLabel(readingLocation.progress * 100)
+  }
+  window.moyuOverlay?.updateReadingLocation(readingLocation)
+}
+
 function updateChapterSelection() {
   updateChapterToggleLabel()
+  const canPrev = state.currentChapter > 0
+  const canNext = state.currentChapter < state.chapters.length - 1
+  prevButton.disabled = !canPrev
+  nextButton.disabled = !canNext
   const buttons = chapterList.querySelectorAll('.chapter-list-button')
   buttons.forEach((button) => {
     const chapterIndex = Number(button.dataset.chapterIndex || 0)
@@ -259,7 +359,7 @@ function scrollToReadingLocation(chapterIndex, progress) {
 
   state.isProgrammaticScroll = true
   const targetTop =
-    section.offsetTop + section.clientHeight * Math.max(0, Math.min(1, Number(progress || 0)))
+    section.offsetTop + section.offsetHeight * Math.max(0, Math.min(1, Number(progress || 0)))
   contentElement.scrollTo({
     top: Math.max(0, targetTop - contentElement.clientHeight * 0.18),
     behavior: 'auto',
@@ -364,7 +464,7 @@ function getCursorForResizeDirection(direction) {
 }
 
 function updateEdgeResizeCursor(event) {
-  if (state.isDragging || state.chapterPanelOpen) {
+  if (state.isDragging || state.chapterPanelOpen || state.appearancePanelOpen) {
     overlayElement.style.cursor = ''
     return
   }
@@ -381,7 +481,7 @@ function shouldStartOverlayDrag(event) {
   if (
     event.button !== 0 ||
     state.isResizing ||
-    event.target.closest('a, button, input, select, textarea, .chapter-panel, .resize-edge')
+    event.target.closest('a, button, input, select, textarea, .chapter-panel, .appearance-panel, .resize-edge')
   ) {
     return false
   }
@@ -613,8 +713,14 @@ window.moyuOverlay?.onState((payload) => {
     }
 
     syncContentColor(payload.textColor)
-    contentElement.style.fontSize = `${payload.fontSize || 16}px`
-    contentElement.style.lineHeight = String(payload.lineHeight || 1.8)
+    document.documentElement.dataset.theme = payload.theme || 'dark'
+    state.theme = payload.theme || 'dark'
+    applyAppearance({
+      fontSize: payload.fontSize || 16,
+      fontWeight: payload.fontWeight || 400,
+      lineHeight: payload.lineHeight || 1.8,
+      textColor: payload.textColor || rgbToHex(payload.red, payload.green, payload.blue),
+    })
     applyOpacity(payload.opacity || state.opacity, { fromRemote: true })
     publishReadingLocation()
     return
@@ -660,6 +766,16 @@ chapterToggleButton.addEventListener('click', (event) => {
   setChapterPanelOpen(!state.chapterPanelOpen)
 })
 
+appearanceButton.addEventListener('click', (event) => {
+  event.stopPropagation()
+  setAppearancePanelOpen(!state.appearancePanelOpen)
+})
+
+appearanceCloseButton.addEventListener('click', (event) => {
+  event.stopPropagation()
+  setAppearancePanelOpen(false)
+})
+
 chapterList.addEventListener('click', (event) => {
   const target = event.target
   if (!(target instanceof HTMLElement)) {
@@ -683,7 +799,24 @@ document.addEventListener('mousedown', (event) => {
   if (state.chapterPanelOpen && !chapterPanel.contains(event.target) && event.target !== chapterToggleButton) {
     setChapterPanelOpen(false)
   }
+
+  if (
+    state.appearancePanelOpen &&
+    !appearancePanel.contains(event.target) &&
+    event.target !== appearanceButton
+  ) {
+    setAppearancePanelOpen(false)
+  }
 })
+
+appearancePanel.addEventListener(
+  'wheel',
+  (event) => {
+    // 外观面板内容超过窗口高度时，滚轮只滚动面板自身，避免触发正文滚动或章节切换。
+    event.stopPropagation()
+  },
+  { passive: true }
+)
 
 contentElement.addEventListener('click', () => {
   bumpChromeVisibility()
@@ -703,7 +836,7 @@ overlayElement.addEventListener(
   (event) => {
     if (
       event.target instanceof HTMLElement &&
-      event.target.closest('.overlay-header, .overlay-footer, .chapter-panel')
+      event.target.closest('.overlay-header, .overlay-footer, .chapter-panel, .appearance-panel')
     ) {
       return
     }
@@ -764,7 +897,7 @@ overlayElement.addEventListener('pointerenter', (event) => {
 })
 
 overlayElement.addEventListener('mouseleave', () => {
-  if (state.chapterPanelOpen) {
+  if (state.chapterPanelOpen || state.appearancePanelOpen) {
     return
   }
 
@@ -785,14 +918,23 @@ resizeEdges.forEach((edge) => {
 })
 
 prevButton.addEventListener('click', () => {
+  if (prevButton.disabled) {
+    return
+  }
   releaseExternalPositionGuard()
   emitAction({ type: 'prev' })
 })
 nextButton.addEventListener('click', () => {
+  if (nextButton.disabled) {
+    return
+  }
   releaseExternalPositionGuard()
   emitAction({ type: 'next' })
 })
-closeButton.addEventListener('click', () => emitAction({ type: 'close' }))
+closeButton.addEventListener('click', () => {
+  publishReadingLocationNow()
+  emitAction({ type: 'close' })
+})
 camouflageButton.addEventListener('click', () =>
   emitAction({ type: 'camouflage', value: state.camouflageEnabled ? 0 : 1 })
 )
@@ -818,6 +960,41 @@ opacityInput.addEventListener('change', () => {
   state.lastOpacityInputAt = Date.now()
   applyOpacity(Number(opacityInput.value || state.opacity))
 })
+
+fontSizeInput.addEventListener('input', () => {
+  applyAppearance({ fontSize: Number(fontSizeInput.value || state.fontSize) }, { emit: true })
+})
+
+fontWeightInput.addEventListener('input', () => {
+  applyAppearance({ fontWeight: Number(fontWeightInput.value || state.fontWeight) }, { emit: true })
+})
+
+lineHeightInput.addEventListener('input', () => {
+  applyAppearance({ lineHeight: Number(lineHeightInput.value || state.lineHeight) }, { emit: true })
+})
+
+textColorInput.addEventListener('input', () => {
+  applyAppearance({ textColor: textColorInput.value })
+})
+
+textColorInput.addEventListener('change', () => {
+  applyAppearance({ textColor: textColorInput.value }, { emit: true })
+  window.moyuOverlay?.setColorPickerActive?.(false)
+})
+
+textColorInput.addEventListener('blur', () => {
+  applyAppearance({ textColor: textColorInput.value }, { emit: true })
+  window.moyuOverlay?.setColorPickerActive?.(false)
+})
+
+textColorInput.addEventListener('pointerdown', () => {
+  window.moyuOverlay?.setColorPickerActive?.(true)
+})
+
+textColorInput.addEventListener('focus', () => {
+  window.moyuOverlay?.setColorPickerActive?.(true)
+})
+
 progressInput.addEventListener('input', () => {
   state.isDraggingProgress = true
   lockExternalPositionGuard()
@@ -855,6 +1032,12 @@ window.addEventListener('keydown', (event) => {
       return
     }
 
+    if (state.appearancePanelOpen) {
+      setAppearancePanelOpen(false)
+      return
+    }
+
+    publishReadingLocationNow()
     emitAction({ type: 'close' })
     return
   }

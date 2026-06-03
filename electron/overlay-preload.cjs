@@ -35,4 +35,7 @@ contextBridge.exposeInMainWorld('moyuOverlay', {
   endDrag() {
     ipcRenderer.send('overlay:endDrag')
   },
+  setColorPickerActive(active) {
+    ipcRenderer.send('overlay:colorPickerActive', Boolean(active))
+  },
 })

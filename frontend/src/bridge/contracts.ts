@@ -13,20 +13,26 @@ export interface WindowBridge {
   showDesktopReaderOverlay(
     text: string,
     fontSize: number,
+    fontWeight: number,
     lineHeight: number,
     opacity: number,
     red: number,
     green: number,
-    blue: number
+    blue: number,
+    theme: 'light' | 'dark' | 'sepia',
+    backgroundColor: string
   ): Promise<void>
   updateDesktopReaderOverlay(
     text: string,
     fontSize: number,
+    fontWeight: number,
     lineHeight: number,
     opacity: number,
     red: number,
     green: number,
-    blue: number
+    blue: number,
+    theme: 'light' | 'dark' | 'sepia',
+    backgroundColor: string
   ): Promise<void>
   updateDesktopReaderOverlayOpacity(opacity: number): Promise<void>
   updateDesktopReaderOverlayControls(
@@ -42,7 +48,7 @@ export interface WindowBridge {
     chapterIndex: number,
     progress: number
   ): Promise<void>
-  hideDesktopReaderOverlay(): Promise<void>
+  hideDesktopReaderOverlay(options?: { revealMainWindow?: boolean }): Promise<void>
   isDesktopReaderOverlayVisible(): Promise<boolean>
   enableStealthMode(): Promise<void>
   disableStealthMode(): Promise<void>

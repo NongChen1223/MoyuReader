@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import styles from './ColorField.module.scss'
 
 export interface ColorFieldProps {
@@ -8,6 +9,7 @@ export interface ColorFieldProps {
   disabled?: boolean
   helperText?: string
   className?: string
+  commitOnBlurOnly?: boolean
 }
 
 function normalizeColorValue(value: string) {
@@ -26,8 +28,22 @@ export default function ColorField({
   disabled = false,
   helperText,
   className = '',
+  commitOnBlurOnly = false,
 }: ColorFieldProps) {
   const normalizedValue = normalizeColorValue(value)
+  const [draftValue, setDraftValue] = useState(normalizedValue)
+
+  useEffect(() => {
+    setDraftValue(normalizedValue)
+  }, [normalizedValue])
+
+  const commitColor = (nextValue = draftValue) => {
+    const normalizedNextValue = normalizeColorValue(nextValue)
+    setDraftValue(normalizedNextValue)
+    if (normalizedNextValue !== normalizedValue) {
+      onChange(normalizedNextValue)
+    }
+  }
 
   return (
     <div className={[styles.container, className].filter(Boolean).join(' ')}>
@@ -45,17 +61,25 @@ export default function ColorField({
       >
         <span
           className={styles.swatch}
-          style={{ backgroundColor: normalizedValue }}
+          style={{ backgroundColor: draftValue }}
           aria-hidden="true"
         />
-        <span className={styles.value}>{normalizedValue}</span>
+        <span className={styles.value}>{draftValue}</span>
         <span className={styles.caption}>点击换色</span>
         <input
           id={id}
           type="color"
           className={styles.input}
-          value={normalizedValue}
-          onChange={(event) => onChange(event.target.value.toUpperCase())}
+          value={draftValue}
+          onInput={(event) => setDraftValue(event.currentTarget.value.toUpperCase())}
+          onChange={(event) => {
+            const nextValue = event.currentTarget.value.toUpperCase()
+            setDraftValue(nextValue)
+            if (!commitOnBlurOnly) {
+              commitColor(nextValue)
+            }
+          }}
+          onBlur={() => commitColor()}
           disabled={disabled}
         />
       </label>

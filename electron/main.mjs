@@ -82,10 +82,14 @@ function writeOverlayDebugSnapshot(name, payload) {
 
 function normalizeOverlayContentPayload(payload) {
   const html = String(payload?.html ?? payload?.text ?? '')
+  const theme = ['light', 'dark', 'sepia'].includes(payload?.theme) ? payload.theme : 'dark'
 
   return {
     ...payload,
     html,
+    fontWeight: Math.max(300, Math.min(900, Math.round(Number(payload?.fontWeight || 400) / 100) * 100)),
+    theme,
+    backgroundColor: String(payload?.backgroundColor || '#ffffff'),
   }
 }
 
@@ -121,7 +125,6 @@ function enqueueOverlayAction(action) {
 
   if (action?.type === 'close') {
     resetOverlayActionQueue()
-    void hideOverlayWindow({ preserveState: true })
     return
   }
 
@@ -216,7 +219,12 @@ async function hideOverlayWindow(options = {}) {
     resetOverlayState({ preserveReadingLocation: true })
   }
 
-  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+  if (
+    options.revealMainWindow !== false &&
+    mainWindow &&
+    !mainWindow.isDestroyed() &&
+    !mainWindow.isVisible()
+  ) {
     mainWindow.show()
     mainWindow.focus()
   }
@@ -361,6 +369,20 @@ function registerIpcHandlers() {
   })
   ipcMain.on('overlay:visible', (_event, payload) => {
     windowState.isDesktopOverlayVisible = Boolean(payload?.visible)
+  })
+  ipcMain.on('overlay:colorPickerActive', (_event, active) => {
+    if (!overlayWindow || overlayWindow.isDestroyed()) {
+      return
+    }
+
+    if (active) {
+      overlayWindow.setAlwaysOnTop(false)
+      return
+    }
+
+    if (windowState.isStealthMode && windowState.isDesktopOverlayVisible) {
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver')
+    }
   })
   ipcMain.on('overlay:startDrag', (_event, payload) => {
     if (!overlayWindow || overlayWindow.isDestroyed() || !payload || typeof payload !== 'object') {
@@ -553,6 +575,11 @@ function registerIpcHandlers() {
         normalizedPayload.blue
       ),
     })
+    sendOverlayState({
+      type: 'position',
+      chapterIndex: overlayState.readingLocation.chapterIndex,
+      progress: overlayState.readingLocation.progress,
+    })
   })
   ipcMain.handle('desktop:window:updateDesktopReaderOverlayOpacity', async (_event, opacity) => {
     windowState.opacity = Math.max(0.02, Math.min(1, Number(opacity || 1)))
@@ -597,14 +624,19 @@ function registerIpcHandlers() {
     JSON.stringify(overlayState.readingLocation)
   )
   ipcMain.handle('desktop:window:moveDesktopReaderOverlayToReadingLocation', async (_event, payload) => {
+    const chapterIndex = Number(payload.chapterIndex || 0)
+    const progress = Math.max(0, Math.min(1, Number(payload.progress || 0)))
+    overlayState.readingLocation = { chapterIndex, progress }
     sendOverlayState({
       type: 'position',
-      chapterIndex: payload.chapterIndex,
-      progress: payload.progress,
+      chapterIndex,
+      progress,
     })
   })
-  ipcMain.handle('desktop:window:hideDesktopReaderOverlay', () => {
-    return hideOverlayWindow()
+  ipcMain.handle('desktop:window:hideDesktopReaderOverlay', (_event, payload) => {
+    return hideOverlayWindow({
+      revealMainWindow: payload?.revealMainWindow !== false,
+    })
   })
   ipcMain.handle('desktop:window:isDesktopReaderOverlayVisible', () => windowState.isDesktopOverlayVisible)
   ipcMain.handle('desktop:window:enableStealthMode', () => {

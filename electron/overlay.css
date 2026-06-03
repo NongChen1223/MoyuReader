@@ -27,6 +27,40 @@
   --accent-color: rgb(160, 150, 214);
 }
 
+:root[data-theme='light'] {
+  --text-color: rgba(17, 24, 39, 0.98);
+  --muted-color: rgba(71, 85, 105, 0.82);
+  --panel-bg: rgba(255, 255, 255, 0.88);
+  --panel-border: rgba(17, 24, 39, 0.7);
+  --panel-shadow: rgba(37, 99, 235, 0.66);
+  --neo-ink: rgb(17, 24, 39);
+  --neo-panel: rgba(255, 255, 255, 0.92);
+  --neo-panel-soft: rgba(248, 250, 252, 0.94);
+  --neo-panel-accent: rgba(219, 234, 254, 0.98);
+  --neo-shadow: rgba(37, 99, 235, 0.78);
+  --neo-danger: rgba(254, 226, 226, 0.98);
+  --control-bg-hover: rgba(219, 234, 254, 0.88);
+  --control-divider: rgba(17, 24, 39, 0.22);
+  --accent-color: rgb(59, 130, 246);
+}
+
+:root[data-theme='sepia'] {
+  --text-color: rgba(60, 60, 50, 0.98);
+  --muted-color: rgba(90, 86, 70, 0.82);
+  --panel-bg: rgba(225, 220, 205, 0.9);
+  --panel-border: rgba(65, 61, 48, 0.68);
+  --panel-shadow: rgba(94, 109, 82, 0.66);
+  --neo-ink: rgb(60, 60, 50);
+  --neo-panel: rgba(225, 220, 205, 0.94);
+  --neo-panel-soft: rgba(215, 210, 195, 0.94);
+  --neo-panel-accent: rgba(190, 205, 178, 0.98);
+  --neo-shadow: rgba(94, 109, 82, 0.78);
+  --neo-danger: rgba(205, 178, 168, 0.98);
+  --control-bg-hover: rgba(190, 205, 178, 0.88);
+  --control-divider: rgba(60, 60, 50, 0.24);
+  --accent-color: rgb(92, 121, 77);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -198,6 +232,18 @@ body {
   transform: translate(2px, 2px);
 }
 
+.overlay-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+  box-shadow: none;
+}
+
+.overlay-button:disabled:hover,
+.overlay-button:disabled:focus-visible {
+  background: transparent;
+  color: var(--text-color);
+}
+
 .overlay-close-button:hover,
 .overlay-close-button:focus-visible {
   background: var(--neo-danger);
@@ -235,6 +281,113 @@ body {
   overflow: hidden;
   -webkit-app-region: no-drag;
   pointer-events: auto;
+}
+
+.appearance-panel {
+  position: absolute;
+  top: 80px;
+  right: var(--content-inset-x);
+  z-index: 20;
+  width: min(320px, calc(100vw - 64px));
+  max-height: calc(100vh - 178px);
+  padding: 16px;
+  border: 2px solid var(--panel-border);
+  border-radius: 18px;
+  background: var(--neo-panel);
+  box-shadow: 6px 6px 0 var(--neo-shadow);
+  color: var(--text-color);
+  opacity: var(--chrome-opacity);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-app-region: no-drag;
+}
+
+.appearance-panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.appearance-panel::-webkit-scrollbar-track {
+  background: rgba(12, 13, 20, 0.22);
+  border-radius: 999px;
+}
+
+.appearance-panel::-webkit-scrollbar-thumb {
+  border: 2px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--accent-color);
+}
+
+.appearance-panel[hidden] {
+  display: none;
+}
+
+.appearance-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.appearance-panel-header button {
+  height: 28px;
+  border: 2px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--neo-panel-soft);
+  color: var(--text-color);
+  box-shadow: 3px 3px 0 var(--neo-shadow);
+  cursor: pointer;
+}
+
+.appearance-field {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.appearance-field input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  background: transparent;
+}
+
+.appearance-field input[type='range']::-webkit-slider-runnable-track {
+  height: 9px;
+  border: 2px solid var(--panel-border);
+  border-radius: 999px;
+  background: rgba(12, 13, 20, 0.24);
+}
+
+.appearance-field input[type='range']::-webkit-slider-thumb {
+  width: 22px;
+  height: 22px;
+  margin-top: -8px;
+  border: 2px solid var(--panel-border);
+  border-radius: 50%;
+  background: var(--accent-color);
+  box-shadow: 3px 3px 0 var(--neo-shadow);
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+
+.appearance-color-field {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.appearance-color-field input {
+  width: 54px;
+  height: 32px;
+  padding: 0;
+  border: 2px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--neo-panel-soft);
+  cursor: pointer;
 }
 
 .chapter-panel-header {

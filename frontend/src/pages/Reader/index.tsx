@@ -15,6 +15,7 @@ import type {
 import { useNovelStore } from '@/stores/novelStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { getPersistedBossOpacity } from '@/stores/settingsStore'
+import { useThemeStore } from '@/stores/themeStore'
 import { useWindowStore } from '@/stores/windowStore'
 import { useLibraryStore } from '@/stores/libraryStore'
 import ReadingAppearanceControls from '@/components/features/ReadingAppearanceControls'
@@ -102,9 +103,24 @@ function setReaderStealthRoot(enabled: boolean) {
 }
 
 interface DesktopOverlayAction {
-  type: 'prev' | 'next' | 'chapter' | 'opacity' | 'close' | 'camouflage' | 'position'
+  type:
+    | 'prev'
+    | 'next'
+    | 'chapter'
+    | 'opacity'
+    | 'close'
+    | 'camouflage'
+    | 'position'
+    | 'appearance'
   chapterIndex?: number
-  value?: number
+  value?:
+    | number
+    | {
+        fontSize?: number
+        fontWeight?: number
+        lineHeight?: number
+        textColor?: string
+      }
 }
 
 function clampUnitInterval(value: number) {
@@ -521,6 +537,7 @@ export default function Reader() {
   const {
     fontSize,
     fontFamily,
+    fontWeight,
     lineHeight,
     backgroundColor,
     textColor,
@@ -529,11 +546,13 @@ export default function Reader() {
     bossRevealDelay,
     bossHideDelay,
     bossOpacity,
+    bossReadingAppearance,
     bossCamouflageEnabled,
     bossCamouflageWidgetPosition,
     keyboardShortcuts,
     setFontSize,
     setFontFamily,
+    setFontWeight,
     setLineHeight,
     setPageWidth,
     setBackgroundColor,
@@ -542,9 +561,11 @@ export default function Reader() {
     setBossRevealDelay,
     setBossHideDelay,
     setBossOpacity,
+    setBossReadingAppearance,
     setBossCamouflageEnabled,
     setBossCamouflageWidgetPosition,
   } = useSettingsStore()
+  const { theme } = useThemeStore()
   const { opacity, isStealthMode, setOpacity, setStealthMode } = useWindowStore()
   const { upsertBook, updateProgressByFilePath } = useLibraryStore()
 
@@ -689,10 +710,15 @@ export default function Reader() {
   const shouldActivateBossMode = Boolean(routeState?.activateBossMode)
   const routeBossModeEntry = routeState?.bossModeEntry ?? 'reader'
   const returnDirectoryId = routeState?.returnDirectoryId
+  const bossFontSize = bossReadingAppearance.fontSize
+  const bossFontWeight = bossReadingAppearance.fontWeight
+  const bossLineHeight = bossReadingAppearance.lineHeight
+  const bossTextColor = bossReadingAppearance.textColor
   const contentStyle: CSSProperties = {
     maxWidth: `${pageWidth}%`,
     fontSize: `${fontSize}px`,
     fontFamily: resolveReaderFontFamily(fontFamily),
+    fontWeight,
     lineHeight,
   }
 
@@ -755,7 +781,7 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
       opacity: nextOpacity,
     })
 
-    const { red, green, blue } = parseHexColor(textColor)
+    const { red, green, blue } = parseHexColor(bossTextColor)
     const readingLocation =
       overlayReadingLocationRef.current && isStealthMode
         ? {
@@ -766,12 +792,15 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
 
           await desktopBridge.window.updateDesktopReaderOverlay(
       overlayChapterMarkup,
-      Math.round(fontSize),
-      lineHeight,
+      Math.round(bossFontSize),
+      bossFontWeight,
+      bossLineHeight,
       nextOpacity,
       red,
       green,
-      blue
+      blue,
+      theme,
+      backgroundColor
     )
     overlayOpacityLastSentRef.current = nextOpacity
 
@@ -1445,12 +1474,25 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
 
     const nextChapterIndex = Math.max(0, Math.min(chapterIndex, novel.chapters.length - 1))
     const nextScrollProgress = clampUnitInterval(chapterScrollProgress)
+    const nextOverlayLocation = {
+      chapterIndex: nextChapterIndex,
+      chapterScrollProgress: nextScrollProgress,
+    }
 
     try {
       clearChapterWindowMaintainTimer()
       if (saveTimerRef.current) {
         window.clearTimeout(saveTimerRef.current)
         saveTimerRef.current = null
+      }
+      if (useDesktopOverlay && useWindowStore.getState().isStealthMode) {
+        clearOverlayReadingSaveTimer()
+        overlayReadingLocationRef.current = {
+          ...nextOverlayLocation,
+          behavior: 'auto',
+          align: nextScrollProgress >= 1 ? 'bottom' : 'anchor',
+        }
+        await syncDesktopOverlayReadingLocation(nextOverlayLocation)
       }
       await setCurrentChapter(novel.filePath, nextChapterIndex)
       currentNovelRef.current = {
@@ -1509,6 +1551,7 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
 
       if (useDesktopOverlay && useWindowStore.getState().isStealthMode) {
         await syncDesktopOverlayControls()
+        await syncDesktopOverlayReadingLocation(nextOverlayLocation)
       }
     } catch (error) {
       pendingChapterScrollRef.current = null
@@ -1876,7 +1919,7 @@ const handleToggleCamouflage = () => {
 
           await ensureChapterLoaded(activeNovel.filePath, activeNovel.currentChapter)
 
-          const { red, green, blue } = parseHexColor(textColor)
+          const { red, green, blue } = parseHexColor(bossTextColor)
           const currentReadingLocation = resolveReaderReadingLocation()
           resetDesktopOverlayOpacitySync()
           setBossOpacity(rememberedBossOpacity)
@@ -1892,12 +1935,15 @@ const handleToggleCamouflage = () => {
 
           await desktopBridge.window.showDesktopReaderOverlay(
             overlayChapterMarkup,
-            Math.round(fontSize),
-            lineHeight,
+            Math.round(bossFontSize),
+            bossFontWeight,
+            bossLineHeight,
             rememberedBossOpacity,
             red,
             green,
-            blue
+            blue,
+            theme,
+            backgroundColor
           )
           await syncDesktopOverlayControls(rememberedBossOpacity)
           await syncDesktopOverlayReadingLocation(currentReadingLocation)
@@ -1975,11 +2021,17 @@ const handleToggleCamouflage = () => {
       flushBossOpacityPersist(useWindowStore.getState().opacity)
       resetDesktopOverlayOpacitySync()
       await captureDesktopOverlayReadingLocation()
+      await flushOverlayReadingLocation({ syncReaderView: !shouldReturnHome })
+      if (shouldReturnHome) {
+        navigate(returnDirectoryId ? `/home?directory=${encodeURIComponent(returnDirectoryId)}` : '/home', {
+          replace: true,
+        })
+        await new Promise((resolve) => window.setTimeout(resolve, 0))
+      }
       await desktopBridge.window.hideDesktopReaderOverlay()
       setStealthMode(false)
       setOpacity(1)
       bossMode.closePanel()
-      await flushOverlayReadingLocation({ syncReaderView: !shouldReturnHome })
     } catch (error) {
       console.error('关闭桌面浮窗失败:', error)
     } finally {
@@ -1990,9 +2042,6 @@ const handleToggleCamouflage = () => {
     }
 
     if (shouldReturnHome) {
-      navigate(returnDirectoryId ? `/home?directory=${encodeURIComponent(returnDirectoryId)}` : '/home', {
-        replace: true,
-      })
       return
     }
 
@@ -2290,10 +2339,10 @@ useEffect(() => {
       return
     }
 
-    if (isWebviewStealthMode || !bossMode.isChromeVisible) {
+    if (!bossMode.isChromeVisible) {
       setShowAppearancePanel(false)
     }
-  }, [bossMode.isChromeVisible, isWebviewStealthMode, showAppearancePanel])
+  }, [bossMode.isChromeVisible, showAppearancePanel])
 
   useEffect(() => {
     if (!useDesktopOverlay || !isStealthMode || !currentNovel) {
@@ -2302,11 +2351,14 @@ useEffect(() => {
 
     void syncDesktopOverlay()
   }, [
-    fontSize,
+    bossFontSize,
+    bossFontWeight,
+    bossLineHeight,
+    bossTextColor,
     currentNovel?.filePath,
-    lineHeight,
     overlayChapterMarkup,
-    textColor,
+    theme,
+    backgroundColor,
     useDesktopOverlay,
     isStealthMode,
   ])
@@ -2390,6 +2442,28 @@ useEffect(() => {
           })
         } else if (action.type === 'camouflage') {
           setBossCamouflageEnabled(Boolean(action.value))
+        } else if (
+          action.type === 'appearance' &&
+          action.value &&
+          typeof action.value === 'object'
+        ) {
+          const nextAppearance = action.value
+          const normalizedAppearance: Partial<typeof bossReadingAppearance> = {}
+          if (typeof nextAppearance.fontSize === 'number') {
+            normalizedAppearance.fontSize = Math.max(12, Math.min(32, nextAppearance.fontSize))
+          }
+          if (typeof nextAppearance.fontWeight === 'number') {
+            normalizedAppearance.fontWeight = Math.max(300, Math.min(900, nextAppearance.fontWeight))
+          }
+          if (typeof nextAppearance.lineHeight === 'number') {
+            normalizedAppearance.lineHeight = Math.max(1, Math.min(3, nextAppearance.lineHeight))
+          }
+          if (typeof nextAppearance.textColor === 'string') {
+            normalizedAppearance.textColor = nextAppearance.textColor
+          }
+          if (Object.keys(normalizedAppearance).length > 0) {
+            setBossReadingAppearance(normalizedAppearance)
+          }
         } else if (action.type === 'close') {
           await closeDesktopOverlayAfterUserAction()
         }
@@ -2445,6 +2519,7 @@ useEffect(() => {
     }
   }, [
     bossMode,
+    bossReadingAppearance,
     closeDesktopOverlayAfterUserAction,
     currentNovel,
     handleChapterChange,
@@ -2452,6 +2527,7 @@ useEffect(() => {
     handleNextChapter,
     handlePrevChapter,
     isStealthMode,
+    setBossReadingAppearance,
     setOpacity,
     setStealthMode,
     useDesktopOverlay,
@@ -2699,8 +2775,7 @@ return (
           </div>
 
           <div className={styles.toolbarRight}>
-            {!isWebviewStealthMode && (
-              <div ref={appearancePanelRef} className={styles.toolbarPopover}>
+            <div ref={appearancePanelRef} className={styles.toolbarPopover}>
                 <button
                   type="button"
                   onClick={() => setShowAppearancePanel((value) => !value)}
@@ -2728,15 +2803,18 @@ return (
                         variant="panel"
                         fontSize={fontSize}
                         fontFamily={fontFamily}
+                        fontWeight={fontWeight}
                         lineHeight={lineHeight}
                         pageWidth={pageWidth}
                         backgroundColor={backgroundColor}
                         textColor={textColor}
                         onFontSizeChange={setFontSize}
                         onFontFamilyChange={setFontFamily}
+                        onFontWeightChange={setFontWeight}
                         onLineHeightChange={setLineHeight}
                         onPageWidthChange={setPageWidth}
                         pageWidthCommitOnRelease
+                        colorCommitOnBlurOnly
                         onBackgroundColorChange={setBackgroundColor}
                         onTextColorChange={setTextColor}
                       />
@@ -2744,7 +2822,6 @@ return (
                   </div>
                 )}
               </div>
-            )}
             <button
               type="button"
               onClick={() => setShowSearch(true)}

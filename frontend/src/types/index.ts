@@ -48,10 +48,18 @@ export interface CamouflageWidgetPosition {
   y: number
 }
 
+export interface BossReadingAppearance {
+  fontSize: number
+  fontWeight: number
+  lineHeight: number
+  textColor: string
+}
+
 // ReadingSettings 阅读设置类型
 export interface ReadingSettings {
   fontSize: number
   fontFamily: string
+  fontWeight: number
   lineHeight: number
   backgroundColor: string
   textColor: string
@@ -62,6 +70,7 @@ export interface ReadingSettings {
   bossHideDelay: number
   bossCamouflageEnabled: boolean
   bossCamouflageWidgetPosition: CamouflageWidgetPosition
+  bossReadingAppearance: BossReadingAppearance
 }
 
 export type ShortcutAction =

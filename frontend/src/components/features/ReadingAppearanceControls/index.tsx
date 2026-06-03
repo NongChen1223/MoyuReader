@@ -8,17 +8,20 @@ type AppearanceVariant = 'page' | 'panel'
 export interface ReadingAppearanceControlsProps {
   fontSize: number
   fontFamily: string
+  fontWeight: number
   lineHeight: number
   pageWidth: number
   backgroundColor: string
   textColor: string
   onFontSizeChange: (value: number) => void
   onFontFamilyChange: (value: string) => void
+  onFontWeightChange: (value: number) => void
   onLineHeightChange: (value: number) => void
   onPageWidthChange: (value: number) => void
   pageWidthCommitOnRelease?: boolean
   onBackgroundColorChange: (value: string) => void
   onTextColorChange: (value: string) => void
+  colorCommitOnBlurOnly?: boolean
   variant?: AppearanceVariant
   className?: string
 }
@@ -33,17 +36,20 @@ const fontOptions = [
 export default function ReadingAppearanceControls({
   fontSize,
   fontFamily,
+  fontWeight,
   lineHeight,
   pageWidth,
   backgroundColor,
   textColor,
   onFontSizeChange,
   onFontFamilyChange,
+  onFontWeightChange,
   onLineHeightChange,
   onPageWidthChange,
   pageWidthCommitOnRelease = false,
   onBackgroundColorChange,
   onTextColorChange,
+  colorCommitOnBlurOnly = false,
   variant = 'page',
   className = '',
 }: ReadingAppearanceControlsProps) {
@@ -70,6 +76,15 @@ export default function ReadingAppearanceControls({
           step={1}
           value={fontSize}
           onChange={onFontSizeChange}
+          showValue={false}
+        />
+        <Slider
+          label={`字重：${fontWeight}`}
+          min={300}
+          max={900}
+          step={100}
+          value={fontWeight}
+          onChange={onFontWeightChange}
           showValue={false}
         />
       </section>
@@ -106,6 +121,7 @@ export default function ReadingAppearanceControls({
             label="背景颜色"
             value={backgroundColor}
             onChange={onBackgroundColorChange}
+            commitOnBlurOnly={colorCommitOnBlurOnly}
             helperText={isPanel ? undefined : '会直接影响阅读页正文底色。'}
           />
           <ColorField
@@ -114,6 +130,7 @@ export default function ReadingAppearanceControls({
             label="文字颜色"
             value={textColor}
             onChange={onTextColorChange}
+            commitOnBlurOnly={colorCommitOnBlurOnly}
             helperText={isPanel ? undefined : '建议和背景保持足够对比度。'}
           />
         </div>
