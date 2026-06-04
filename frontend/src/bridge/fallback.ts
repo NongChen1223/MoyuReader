@@ -18,6 +18,9 @@ export const fallbackBridge: DesktopBridge = {
     selectNovelFile() {
       return rejectUnavailable('选择小说文件')
     },
+    showItemInFolder() {
+      return rejectUnavailable('打开文件所在目录')
+    },
   },
   novel: {
     openNovel() {

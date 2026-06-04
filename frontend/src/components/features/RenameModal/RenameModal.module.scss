@@ -71,6 +71,52 @@
   color: rgb(var(--brutal-ink));
 }
 
+.typeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.typeButton {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.62rem 0.72rem;
+  border: 2px solid rgb(var(--brutal-ink));
+  border-radius: 12px;
+  background: rgb(var(--brutal-surface));
+  box-shadow: 3px 3px 0 rgb(var(--brutal-shadow-color));
+  color: rgb(var(--brutal-ink));
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.14s ease,
+    background 0.14s ease;
+
+  span {
+    font-size: 0.86rem;
+    font-weight: 900;
+  }
+
+  small {
+    color: rgb(var(--brutal-description));
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  &:hover {
+    transform: translate(1px, 1px);
+    box-shadow: 2px 2px 0 rgb(var(--brutal-shadow-color));
+  }
+}
+
+.typeButtonActive {
+  background: rgb(var(--brutal-accent-bg));
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 rgb(var(--brutal-shadow-color));
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;
@@ -88,5 +134,9 @@
 
   .actions > * {
     width: 100%;
+  }
+
+  .typeGrid {
+    grid-template-columns: 1fr;
   }
 }

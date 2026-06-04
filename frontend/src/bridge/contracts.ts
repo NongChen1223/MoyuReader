@@ -89,6 +89,7 @@ export interface AppBridge {
   selectDataDir(): Promise<string>
   setDataDir(dataDir: string): Promise<AppConfig>
   selectNovelFile(): Promise<string>
+  showItemInFolder(filePath: string): Promise<void>
 }
 
 export interface EventBridge {

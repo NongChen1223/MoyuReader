@@ -49,6 +49,9 @@ const app: AppBridge = {
   selectNovelFile() {
     return getElectronDesktopApi().app.selectNovelFile()
   },
+  showItemInFolder(filePath) {
+    return getElectronDesktopApi().app.showItemInFolder(filePath)
+  },
 }
 
 const novel: NovelBridge = {

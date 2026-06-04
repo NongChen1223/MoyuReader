@@ -20,7 +20,7 @@ import {
   X,
 } from 'lucide-react'
 import { Popover, message } from 'antd'
-import type { Book, SortMode, ViewMode } from '@/types'
+import type { Book, BookContentType, SortMode, ViewMode } from '@/types'
 import Sidebar from '@/components/features/Sidebar'
 import BookCard from '@/components/features/BookCard'
 import ConfirmModal from '@/components/features/ConfirmModal'
@@ -170,6 +170,7 @@ function mapDirectoryFileToBook(
     cover: file.cover,
     type: 'novel',
     category: formatBookCategory(file.format),
+    contentType: file.contentType || 'auto',
     isDirectory: false,
     filePath: file.filePath,
     format: file.format,
@@ -239,6 +240,8 @@ export default function Home() {
     createDirectory,
     renameBook,
     renameFileInDirectory,
+    updateBookContentType,
+    updateFileContentTypeInDirectory,
     removeBook,
     removeFileFromDirectory,
     moveBooksToDirectory,
@@ -574,19 +577,44 @@ export default function Home() {
     }
   }
 
+  const handleRevealBookInFolder = async (book: Book) => {
+    const target = resolveBookReadTarget(book)
+    if (!target?.filePath) {
+      messageApi.warning('当前条目没有可定位的本地文件')
+      return
+    }
+
+    try {
+      await desktopBridge.app.showItemInFolder(target.filePath)
+    } catch (error) {
+      console.error('打开所在目录失败:', error)
+      messageApi.error(getErrorMessage(error, '打开所在目录失败'))
+    }
+  }
+
   const handleEditBook = (book: Book) => {
     setRenameTarget(book)
   }
 
-  const handleRenameConfirm = (nextTitle: string) => {
+  const handleRenameConfirm = (nextTitle: string, nextContentType?: BookContentType) => {
     if (!renameTarget) {
       return
     }
 
     if (renameTarget.parentDirectoryId) {
       renameFileInDirectory(renameTarget.parentDirectoryId, renameTarget.id, nextTitle)
+      if (nextContentType) {
+        updateFileContentTypeInDirectory(
+          renameTarget.parentDirectoryId,
+          renameTarget.id,
+          nextContentType
+        )
+      }
     } else {
       renameBook(renameTarget.id, nextTitle)
+      if (nextContentType && !renameTarget.isDirectory) {
+        updateBookContentType(renameTarget.id, nextContentType)
+      }
     }
 
     messageApi.success(
@@ -814,6 +842,7 @@ export default function Home() {
                   viewMode={viewMode}
                   onOpen={handleOpenBook}
                   onOpenInBossMode={handleOpenBookInBossMode}
+                  onRevealInFolder={handleRevealBookInFolder}
                   onEdit={handleEditBook}
                   onDelete={handleDeleteBook}
                   onQuickRead={handleQuickRead}
@@ -863,6 +892,8 @@ export default function Home() {
         description={renameTarget ? getRenameDescription(renameTarget) : ''}
         currentName={renameTarget?.title || ''}
         placeholder={renameTarget?.isDirectory ? '例如：三体系列' : '例如：三体'}
+        contentType={renameTarget?.contentType || 'auto'}
+        showContentType={Boolean(renameTarget && !renameTarget.isDirectory)}
         onClose={() => setRenameTarget(null)}
         onConfirm={handleRenameConfirm}
       />

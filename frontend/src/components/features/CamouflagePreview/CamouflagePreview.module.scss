@@ -220,9 +220,39 @@
   text-align: center;
 }
 
+.feedPreview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+
+  button {
+    padding: 0.52rem 0.6rem;
+    border: 2px solid rgb(var(--neo-ink));
+    border-radius: 10px;
+    background: rgb(var(--neo-panel-accent));
+    box-shadow: 3px 3px 0 rgb(var(--neo-shadow));
+    color: rgb(var(--neo-ink));
+    font-size: 0.74rem;
+    font-weight: 900;
+    cursor: pointer;
+    transition:
+      transform 0.14s ease,
+      box-shadow 0.14s ease;
+
+    &:hover {
+      transform: translate(1px, 1px);
+      box-shadow: 2px 2px 0 rgb(var(--neo-shadow));
+    }
+  }
+}
+
 @media (max-width: 620px) {
   .actionGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .feedPreview {
+    grid-template-columns: 1fr;
   }
 }
 

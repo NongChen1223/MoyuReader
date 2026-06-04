@@ -4,7 +4,6 @@ import { Tooltip } from 'antd'
 import {
   Palette,
   BookOpen,
-  HardDrive,
   BarChart3,
   Keyboard,
   ArrowLeft,
@@ -13,7 +12,6 @@ import {
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import AppearanceSettings from './tabs/AppearanceSettings'
 import ReadingSettings from './tabs/ReadingSettings'
-import StorageSettings from './tabs/StorageSettings'
 import StatisticsSettings from './tabs/StatisticsSettings'
 import KeyboardSettings from './tabs/KeyboardSettings'
 import PetSettings from './tabs/PetSettings'
@@ -55,12 +53,6 @@ export default function Settings() {
       label: '挂件设置',
       icon: <PawPrint size={20} />,
       component: <PetSettings />,
-    },
-    {
-      id: 'storage',
-      label: '存储管理',
-      icon: <HardDrive size={20} />,
-      component: <StorageSettings />,
     },
     {
       id: 'statistics',

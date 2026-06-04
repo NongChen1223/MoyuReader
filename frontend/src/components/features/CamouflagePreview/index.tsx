@@ -24,7 +24,17 @@ export default function CamouflagePreview({
   restoreTrigger,
 }: CamouflagePreviewProps) {
   const [stage, setStage] = useState<PreviewStage>('expanded')
+  const [previewMood, setPreviewMood] = useState<'idle' | 'mouth_open' | 'chew' | 'question'>('idle')
+  const [previewBubble, setPreviewBubble] = useState('')
   const idleAction = petKind === 'cat' ? 'lick_paw' : 'sit_tail'
+  const activeAction =
+    previewMood === 'mouth_open' || previewMood === 'chew'
+      ? 'mouth_open'
+      : previewMood === 'question'
+      ? 'question'
+      : wandering
+      ? 'walk'
+      : idleAction
   const restoreText =
     restoreTrigger === 'click'
       ? '单击恢复'
@@ -88,6 +98,20 @@ export default function CamouflagePreview({
     }
   }
 
+  const playFeedPreview = (accepted: boolean) => {
+    setStage('collapsed')
+    setPreviewMood('mouth_open')
+    setPreviewBubble('啊，文件来了')
+    window.setTimeout(() => {
+      setPreviewMood(accepted ? 'chew' : 'question')
+      setPreviewBubble(accepted ? '好吃，嚼嚼' : '这个不好吃')
+    }, 520)
+    window.setTimeout(() => {
+      setPreviewMood('idle')
+      setPreviewBubble('')
+    }, 2100)
+  }
+
   return (
     <div className={styles.preview}>
       <div className={styles.stage}>
@@ -140,8 +164,10 @@ export default function CamouflagePreview({
           <CamouflagePendant
             variant="preview"
             petKind={petKind}
-            action={wandering ? 'walk' : idleAction}
-            wandering={wandering}
+            action={activeAction}
+            wandering={wandering && previewMood === 'idle'}
+            mood={previewMood === 'idle' && wandering ? 'walk' : previewMood}
+            bubble={previewBubble}
             title="伪装中"
             subtitle={wandering ? `游荡预览 · ${restoreText}` : `${restoreText} · 可拖动`}
           />
@@ -169,6 +195,14 @@ export default function CamouflagePreview({
           <PetSprite petKind={petKind} action="question" scale={0.58} />
           <span>疑问反馈</span>
         </div>
+      </div>
+      <div className={styles.feedPreview}>
+        <button type="button" onClick={() => playFeedPreview(true)}>
+          模拟投喂支持文件
+        </button>
+        <button type="button" onClick={() => playFeedPreview(false)}>
+          模拟投喂不支持文件
+        </button>
       </div>
       <p className={styles.caption}>移出演示卡片时收纳，当前恢复方式：{restoreText}。</p>
     </div>

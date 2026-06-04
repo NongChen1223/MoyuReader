@@ -1,0 +1,15 @@
+.container {
+  display: grid;
+  gap: 10px;
+}
+
+.compact {
+  min-width: 260px;
+}
+
+.description {
+  margin: 0;
+  color: var(--muted-text);
+  font-size: 13px;
+  line-height: 1.6;
+}

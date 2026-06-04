@@ -50,6 +50,16 @@ export interface CamouflageWidgetPosition {
 
 export type CamouflagePetKind = 'dog' | 'cat'
 export type CamouflageRestoreTrigger = 'click' | 'doubleClick' | 'hover' | 'shortcut'
+export type ReadingMode =
+  | 'chapter-scroll'
+  | 'continuous-scroll'
+  | 'paged'
+  | 'auto-scroll'
+  | 'comic-strip'
+  | 'comic-single'
+  | 'comic-double'
+  | 'pdf-continuous'
+  | 'pdf-single-fit'
 
 export interface BossReadingAppearance {
   fontSize: number
@@ -67,6 +77,7 @@ export interface ReadingSettings {
   backgroundColor: string
   textColor: string
   pageWidth: number
+  readingMode: ReadingMode
   theme: 'light' | 'dark' | 'sepia'
   bossModeType: 'basic' | 'full'
   bossRevealDelay: number
@@ -106,6 +117,8 @@ export interface WindowState {
 }
 
 // BookFile 目录内的单个文件
+export type BookContentType = 'auto' | 'novel' | 'comic' | 'document'
+
 export interface BookFile {
   id: string
   title: string
@@ -113,6 +126,7 @@ export interface BookFile {
   cover?: string // 封面图片路径
   filePath: string // 文件路径
   format: string // 文件格式
+  contentType?: BookContentType // 内容类型，用于决定默认阅读/翻页模式
   fileSize: number // 文件大小（字节）
   progress: number // 阅读进度 0-100
   currentPage?: number // 当前页码
@@ -129,6 +143,7 @@ export interface Book {
   cover?: string // 封面图片路径
   type: 'novel' | 'manga'
   category: string // 分类标签
+  contentType?: BookContentType // 内容类型，用于决定默认阅读/翻页模式
   lastReadTime?: number // 最后阅读时间戳
   createdAt: number // 创建时间
 

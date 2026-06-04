@@ -1,4 +1,4 @@
-import type { Book, Chapter, Novel } from '@/types'
+import type { Book, BookContentType, Chapter, Novel } from '@/types'
 
 const DEFAULT_AUTHOR = '未知作者'
 export const CONTENT_CHUNK_CLASS_NAME = 'reader-content-chunk'
@@ -70,12 +70,18 @@ export function normalizeChapter(source: BridgeChapter | Chapter): Chapter {
 }
 
 export function mapNovelToBook(novel: Novel, existingBook?: Book): Book {
+  const detectedContentType = detectBookContentType(novel)
+
   return {
     id: novel.filePath,
     title: novel.title,
     author: novel.author || existingBook?.author || DEFAULT_AUTHOR,
     type: 'novel',
     category: formatBookCategory(novel.format),
+    contentType:
+      existingBook?.contentType && existingBook.contentType !== 'auto'
+        ? existingBook.contentType
+        : detectedContentType,
     isDirectory: false,
     cover: novel.cover || existingBook?.cover,
     filePath: novel.filePath,
@@ -89,6 +95,48 @@ export function mapNovelToBook(novel: Novel, existingBook?: Book): Book {
 
 export function formatBookCategory(format: string) {
   return format.replace(/^\./, '').toUpperCase() || 'TXT'
+}
+
+export function formatContentTypeLabel(contentType?: BookContentType) {
+  switch (contentType) {
+    case 'novel':
+      return '小说'
+    case 'comic':
+      return '漫画'
+    case 'document':
+      return '文档'
+    case 'auto':
+    default:
+      return '自动'
+  }
+}
+
+export function detectBookContentType(novel: Novel): BookContentType {
+  const format = novel.format.replace(/^\./, '').toLowerCase()
+  const content = novel.content || ''
+  const imageMatches = content.match(/<img\b|data:image\//gi)?.length || 0
+  const textLength = content
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, '')
+    .length
+
+  if (format === 'txt') {
+    return 'novel'
+  }
+
+  if (format === 'pdf') {
+    return imageMatches > 0 && textLength < 500 ? 'comic' : 'document'
+  }
+
+  if (format === 'epub') {
+    if (imageMatches >= Math.max(4, novel.chapters.length) && textLength < imageMatches * 180) {
+      return 'comic'
+    }
+
+    return 'novel'
+  }
+
+  return 'auto'
 }
 
 export function resolveReaderFontFamily(fontFamily: string) {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -476,6 +476,14 @@ function registerIpcHandlers() {
     })
 
     return result.canceled ? '' : result.filePaths[0] || ''
+  })
+  ipcMain.handle('desktop:app:showItemInFolder', async (_event, filePath) => {
+    const normalizedPath = String(filePath || '').trim()
+    if (!normalizedPath) {
+      throw new Error('未提供文件路径')
+    }
+
+    shell.showItemInFolder(normalizedPath)
   })
 
   ipcMain.handle('desktop:novel:open', (_event, filePath) =>

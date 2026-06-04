@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('moyuDesktop', {
     selectDataDir: () => invoke('desktop:app:selectDataDir'),
     setDataDir: (dataDir) => invoke('desktop:app:setDataDir', dataDir),
     selectNovelFile: () => invoke('desktop:app:selectNovelFile'),
+    showItemInFolder: (filePath) => invoke('desktop:app:showItemInFolder', filePath),
   },
   novel: {
     openNovel: (filePath) => invoke('desktop:novel:open', filePath),

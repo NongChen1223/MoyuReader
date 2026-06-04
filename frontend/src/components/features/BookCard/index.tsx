@@ -1,7 +1,8 @@
 import type { MouseEvent } from 'react'
 import type { Book, ViewMode } from '@/types'
-import { BookOpen, Eye, EyeOff, Edit2, Trash2, FolderOpen, Plus } from 'lucide-react'
+import { BookOpen, Eye, EyeOff, Edit2, Trash2, FolderOpen, Plus, FolderSearch } from 'lucide-react'
 import Badge from '@/components/common/Badge'
+import { formatContentTypeLabel } from '@/utils/novel'
 import styles from './BookCard.module.scss'
 
 export interface BookCardProps {
@@ -15,6 +16,7 @@ export interface BookCardProps {
   onDelete?: (book: Book) => void
   onQuickRead?: (book: Book) => void
   onImportToDirectory?: (book: Book) => void
+  onRevealInFolder?: (book: Book) => void
   onToggleSelect?: (book: Book) => void
 }
 
@@ -34,6 +36,7 @@ export default function BookCard({
   onDelete,
   onQuickRead,
   onImportToDirectory,
+  onRevealInFolder,
   onToggleSelect,
 }: BookCardProps) {
   const handlePrimaryOpen = () => {
@@ -70,6 +73,11 @@ export default function BookCard({
     event.stopPropagation()
     onImportToDirectory?.(book)
   }
+  const handleRevealInFolder = (event: MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    onRevealInFolder?.(book)
+  }
   const handleEdit = (event: MouseEvent) => {
     event.preventDefault()
     event.stopPropagation()
@@ -96,6 +104,9 @@ export default function BookCard({
       : 0
   const progressValue = clampProgress(book.isDirectory ? directoryProgress : book.progress || 0)
   const progressLabel = formatProgress(progressValue)
+  const categoryLabel = book.isDirectory
+    ? `${book.totalFiles || 0} 个文件`
+    : `${book.category} · ${formatContentTypeLabel(book.contentType)}`
   const cardClasses = [
     styles.card,
     styles[viewMode],
@@ -133,7 +144,7 @@ export default function BookCard({
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
               <div className={styles.tagWrapper}>
                 <Badge variant="primary" size="sm">
-                  {book.isDirectory ? `${book.totalFiles || 0} 个文件` : book.category}
+                  {categoryLabel}
                 </Badge>
               </div>
             </div>
@@ -210,6 +221,15 @@ export default function BookCard({
                     >
                       <EyeOff size={16} />
                     </button>
+                    <button
+                      type="button"
+                      className={styles.iconButton}
+                      onClick={handleRevealInFolder}
+                      aria-label="打开所在目录"
+                      title="打开所在目录"
+                    >
+                      <FolderSearch size={16} />
+                    </button>
                   </>
                 )}
                 <button
@@ -268,7 +288,7 @@ export default function BookCard({
 
           <div className={styles.tagWrapper}>
             <Badge variant="primary" size="sm">
-              {book.isDirectory ? `${book.totalFiles || 0} 个文件` : book.category}
+              {categoryLabel}
             </Badge>
           </div>
 
@@ -312,6 +332,10 @@ export default function BookCard({
                     <EyeOff size={20} />
                     <span>老板模式</span>
                   </button>
+                  <button type="button" className={styles.actionButton} onClick={handleRevealInFolder}>
+                    <FolderSearch size={20} />
+                    <span>所在目录</span>
+                  </button>
                 </>
               )}
             </div>
@@ -327,6 +351,17 @@ export default function BookCard({
         )}
         {!selectionMode && (
           <div className={styles.actions}>
+            {!book.isDirectory && (
+              <button
+                type="button"
+                className={styles.iconButton}
+                onClick={handleRevealInFolder}
+                aria-label="打开所在目录"
+                title="打开所在目录"
+              >
+                <FolderSearch size={16} />
+              </button>
+            )}
             <button
               type="button"
               className={styles.iconButton}

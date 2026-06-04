@@ -1,5 +1,6 @@
 import { useSettingsStore } from '@/stores/settingsStore'
 import ReadingAppearanceControls from '@/components/features/ReadingAppearanceControls'
+import ReadingModeControls from '@/components/features/ReadingModeControls'
 import Slider from '@/components/common/Slider'
 import Toggle from '@/components/common/Toggle'
 import styles from './ReadingSettings.module.scss'
@@ -30,6 +31,7 @@ export default function ReadingSettings() {
     fontWeight,
     lineHeight,
     pageWidth,
+    readingMode,
     backgroundColor,
     textColor,
     bossRevealDelay,
@@ -42,6 +44,7 @@ export default function ReadingSettings() {
     setFontWeight,
     setLineHeight,
     setPageWidth,
+    setReadingMode,
     setBackgroundColor,
     setTextColor,
     setBossRevealDelay,
@@ -70,6 +73,14 @@ export default function ReadingSettings() {
           onPageWidthChange={setPageWidth}
           onBackgroundColorChange={setBackgroundColor}
           onTextColorChange={setTextColor}
+        />
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>阅读方式</h2>
+        <ReadingModeControls
+          readingMode={readingMode}
+          onReadingModeChange={setReadingMode}
         />
       </section>
 

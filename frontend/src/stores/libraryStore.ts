@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Book, BookFile } from '@/types'
+import type { Book, BookContentType, BookFile } from '@/types'
 
 interface LibraryState {
   books: Book[]
@@ -8,6 +8,12 @@ interface LibraryState {
   createDirectory: (name: string) => void
   renameBook: (bookId: string, title: string) => void
   renameFileInDirectory: (directoryId: string, fileId: string, title: string) => void
+  updateBookContentType: (bookId: string, contentType: BookContentType) => void
+  updateFileContentTypeInDirectory: (
+    directoryId: string,
+    fileId: string,
+    contentType: BookContentType
+  ) => void
   removeBook: (bookId: string) => void
   removeFileFromDirectory: (directoryId: string, fileId: string) => void
   moveBooksToDirectory: (directoryId: string, fileIds: string[]) => void
@@ -24,6 +30,10 @@ function clampProgress(progress: number) {
   return Math.max(0, Math.min(100, Number(progress || 0)))
 }
 
+function normalizeContentType(value?: string): BookContentType {
+  return value === 'novel' || value === 'comic' || value === 'document' ? value : 'auto'
+}
+
 function normalizeDirectoryFiles(files: BookFile[] = []) {
   const seenKeys = new Set<string>()
 
@@ -37,6 +47,7 @@ function normalizeDirectoryFiles(files: BookFile[] = []) {
     result.push({
       ...file,
       author: file.author || DEFAULT_AUTHOR,
+      contentType: normalizeContentType(file.contentType),
       progress: clampProgress(file.progress),
       order: result.length + 1,
     })
@@ -53,6 +64,7 @@ function normalizeLibraryBooks(books: Book[]) {
       return {
         ...book,
         author: book.author || DEFAULT_AUTHOR,
+        contentType: normalizeContentType(book.contentType),
         progress: clampProgress(book.progress),
       }
     }
@@ -99,6 +111,7 @@ function mapBookToDirectoryFile(book: Book, order: number): BookFile {
     cover: book.cover,
     filePath: book.filePath || '',
     format: book.format || '',
+    contentType: normalizeContentType(book.contentType),
     fileSize: book.fileSize || 0,
     progress: clampProgress(book.progress || 0),
     lastReadTime: book.lastReadTime,
@@ -134,6 +147,7 @@ export const useLibraryStore = create<LibraryState>()(
               author: '自定义目录',
               type: 'novel',
               category: '目录',
+              contentType: 'auto',
               isDirectory: true,
               totalFiles: 0,
               files: [],
@@ -165,6 +179,38 @@ export const useLibraryStore = create<LibraryState>()(
                 files:
                   book.files?.map((file) =>
                     file.id === fileId ? { ...file, title: title.trim() || file.title } : file
+                  ) || [],
+              }
+            })
+          ),
+        })),
+
+      updateBookContentType: (bookId, contentType) =>
+        set((state) => ({
+          books: normalizeLibraryBooks(
+            state.books.map((book) =>
+              book.id === bookId
+                ? { ...book, contentType: normalizeContentType(contentType) }
+                : book
+            )
+          ),
+        })),
+
+      updateFileContentTypeInDirectory: (directoryId, fileId, contentType) =>
+        set((state) => ({
+          books: normalizeLibraryBooks(
+            state.books.map((book) => {
+              if (book.id !== directoryId || !book.isDirectory) {
+                return book
+              }
+
+              return {
+                ...book,
+                files:
+                  book.files?.map((file) =>
+                    file.id === fileId
+                      ? { ...file, contentType: normalizeContentType(contentType) }
+                      : file
                   ) || [],
               }
             })

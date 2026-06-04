@@ -59,7 +59,7 @@ export default function PetSettings() {
             <div className={styles.switchCopy}>
               <span>允许桌宠自己游荡</span>
               <p>
-                开启后，收纳为挂件时优先播放走路游荡动作；真实桌面自动移动逻辑后续接入。
+                开启后，WebView 挂件会在当前窗口内游荡；macOS 原生桌面浮窗游荡后续接入。
               </p>
             </div>
             <Toggle

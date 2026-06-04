@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   CSSProperties,
+  DragEvent as ReactDragEvent,
   MutableRefObject,
   PointerEvent as ReactPointerEvent,
   RefObject,
@@ -10,6 +11,7 @@ import type {
   CamouflageWidgetPosition,
   Novel,
   ReaderContentBlock,
+  ReadingMode,
   SearchResult,
 } from '@/types'
 import { useNovelStore } from '@/stores/novelStore'
@@ -19,6 +21,7 @@ import { useThemeStore } from '@/stores/themeStore'
 import { useWindowStore } from '@/stores/windowStore'
 import { useLibraryStore } from '@/stores/libraryStore'
 import ReadingAppearanceControls from '@/components/features/ReadingAppearanceControls'
+import ReadingModeControls, { usesWholeBookProgress } from '@/components/features/ReadingModeControls'
 import CamouflagePendant from '@/components/features/CamouflagePendant'
 import Slider from '@/components/common/Slider'
 import { desktopBridge } from '@/bridge'
@@ -81,8 +84,13 @@ const CAMOUFLAGE_ANIMATION_MS = 240
 const CAMOUFLAGE_WIDGET_WIDTH = 156
 const CAMOUFLAGE_WIDGET_HEIGHT = 92
 const CAMOUFLAGE_VIEWPORT_PADDING = 16
+const CAMOUFLAGE_WANDER_INTERVAL_MS = 1800
+const CAMOUFLAGE_FEEDBACK_MS = 1800
 
 type CamouflageStage = 'expanded' | 'collapsing' | 'collapsed' | 'expanding'
+type CamouflagePetMood = 'idle' | 'walk' | 'mouth_open' | 'chew' | 'question'
+
+const SUPPORTED_DROP_EXTENSIONS = new Set(['txt', 'epub', 'pdf'])
 
 function clampStealthOpacity(value: number) {
   return Math.max(MIN_STEALTH_OPACITY, Math.min(MAX_STEALTH_OPACITY, Number(value || 0)))
@@ -288,7 +296,37 @@ function deriveChapterProgressFromOverall(novel: Novel, chapterIndex: number) {
   return clampUnitInterval((absolutePosition - chapter.startPos) / chapterLength)
 }
 
-function getDesktopOverlayPrefetchAhead(format: string) {
+function resolveReadingLocationFromOverallProgress(novel: Novel, progressPercent: number) {
+  const totalLength = novel.contentLength || novel.content.length
+  if (totalLength <= 0 || novel.chapters.length === 0) {
+    return {
+      chapterIndex: 0,
+      chapterScrollProgress: 0,
+    }
+  }
+
+  const absolutePosition = Math.round(
+    clampUnitInterval(progressPercent / 100) * Math.max(totalLength, 1)
+  )
+  const chapterIndex = Math.max(
+    0,
+    Math.min(findChapterIndexByPosition(novel.chapters, absolutePosition), novel.chapters.length - 1)
+  )
+  const chapter = novel.chapters[chapterIndex]
+  const chapterLength = Math.max(chapter.endPos - chapter.startPos, 1)
+
+  return {
+    chapterIndex,
+    chapterScrollProgress: clampUnitInterval((absolutePosition - chapter.startPos) / chapterLength),
+  }
+}
+
+function getDesktopOverlayPrefetchAhead(format: string, readingMode: ReadingMode) {
+  const readingModeWindow = getReadingModeChapterWindow(readingMode)
+  if (readingModeWindow.after > CHAPTER_WINDOW_AFTER) {
+    return readingModeWindow.after
+  }
+
   if (format === '.pdf') {
     return DESKTOP_OVERLAY_PREFETCH_AHEAD.pdf
   }
@@ -456,17 +494,40 @@ function buildDesktopOverlayChapterPreview(chapter: LoadedChapter, format: strin
   })
 }
 
+function getReadingModeChapterWindow(readingMode: ReadingMode) {
+  switch (readingMode) {
+    case 'comic-strip':
+    case 'pdf-continuous':
+      return { before: 2, after: 24 }
+    case 'continuous-scroll':
+      return { before: 2, after: 12 }
+    case 'comic-double':
+      return { before: 2, after: 8 }
+    case 'comic-single':
+    case 'pdf-single-fit':
+    case 'paged':
+      return { before: 1, after: 3 }
+    case 'auto-scroll':
+    case 'chapter-scroll':
+    default:
+      return { before: CHAPTER_WINDOW_BEFORE, after: CHAPTER_WINDOW_AFTER }
+  }
+}
+
 function getChapterWindowRange(
   focusChapterIndex: number,
-  totalChapters: number
+  totalChapters: number,
+  readingMode: ReadingMode
 ): ChapterWindowRange {
   if (totalChapters <= 0) {
     return { start: 0, end: 0 }
   }
 
+  const chapterWindow = getReadingModeChapterWindow(readingMode)
+
   return {
-    start: Math.max(0, focusChapterIndex - CHAPTER_WINDOW_BEFORE),
-    end: Math.min(totalChapters - 1, focusChapterIndex + CHAPTER_WINDOW_AFTER),
+    start: Math.max(0, focusChapterIndex - chapterWindow.before),
+    end: Math.min(totalChapters - 1, focusChapterIndex + chapterWindow.after),
   }
 }
 
@@ -479,6 +540,28 @@ function normalizeCamouflageWidgetPosition(position: CamouflageWidgetPosition) {
     x: clampCamouflageRatio(position.x),
     y: clampCamouflageRatio(position.y),
   }
+}
+
+function resolveDroppedFileExtension(file?: File) {
+  const name = file?.name || ''
+  const dotIndex = name.lastIndexOf('.')
+  return dotIndex >= 0 ? name.slice(dotIndex + 1).toLowerCase() : ''
+}
+
+function buildCamouflageBubbleText(mood: CamouflagePetMood, fileName?: string) {
+  if (mood === 'mouth_open') {
+    return '给我看看！'
+  }
+
+  if (mood === 'chew') {
+    return fileName ? `好吃：${fileName}` : '好吃，正在嚼嚼'
+  }
+
+  if (mood === 'question') {
+    return fileName ? `这个不好吃：${fileName}` : '这个不好吃'
+  }
+
+  return ''
 }
 
 function getCamouflageTravelSize() {
@@ -542,6 +625,7 @@ export default function Reader() {
     backgroundColor,
     textColor,
     pageWidth,
+    readingMode,
     bossModeType,
     bossRevealDelay,
     bossHideDelay,
@@ -558,6 +642,7 @@ export default function Reader() {
     setFontWeight,
     setLineHeight,
     setPageWidth,
+    setReadingMode,
     setBackgroundColor,
     setTextColor,
     setBossModeType,
@@ -575,6 +660,7 @@ export default function Reader() {
   const [showSidebar, setShowSidebar] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [showAppearancePanel, setShowAppearancePanel] = useState(false)
+  const [showReadingModePanel, setShowReadingModePanel] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [loadedChapters, setLoadedChapters] = useState<LoadedChapter[]>([])
@@ -586,6 +672,8 @@ export default function Reader() {
     normalizeCamouflageWidgetPosition(bossCamouflageWidgetPosition)
   )
   const [isDraggingCamouflageWidget, setIsDraggingCamouflageWidget] = useState(false)
+  const [camouflagePetMood, setCamouflagePetMood] = useState<CamouflagePetMood>('idle')
+  const [camouflageBubbleText, setCamouflageBubbleText] = useState('')
 
   const contentRef = useRef<HTMLDivElement>(null)
   const chapterListRef = useRef<HTMLDivElement>(null)
@@ -593,6 +681,7 @@ export default function Reader() {
   const scrollTickingRef = useRef(false)
   const chapterWindowMaintainTimerRef = useRef<number | null>(null)
   const appearancePanelRef = useRef<HTMLDivElement>(null)
+  const readingModePanelRef = useRef<HTMLDivElement>(null)
   const bossPanelRef = useRef<HTMLDivElement>(null)
   const sidebarRef = useRef<HTMLDivElement>(null)
   const chapterLoadRevisionRef = useRef(0)
@@ -614,6 +703,8 @@ export default function Reader() {
   const camouflageDragCleanupRef = useRef<(() => void) | null>(null)
   const camouflageDragFrameRef = useRef<number | null>(null)
   const camouflageDragLatestPositionRef = useRef<CamouflageWidgetPosition | null>(null)
+  const camouflageWanderTimerRef = useRef<number | null>(null)
+  const camouflageFeedbackTimerRef = useRef<number | null>(null)
   const bossOpacityPersistTimerRef = useRef<number | null>(null)
   const overlayOpacityFrameRef = useRef<number | null>(null)
   const overlayOpacityQueuedValueRef = useRef<number | null>(null)
@@ -642,6 +733,12 @@ export default function Reader() {
       : null
   const currentChapterProgressPercent = currentNovel
     ? deriveChapterProgressFromOverall(currentNovel, currentNovel.currentChapter) * 100
+    : 0
+  const useWholeBookProgress = usesWholeBookProgress(readingMode)
+  const readerProgressPercent = currentNovel
+    ? useWholeBookProgress
+      ? Math.max(0, Math.min(100, Number(currentNovel.readProgress || 0)))
+      : currentChapterProgressPercent
     : 0
   const currentChapterContent = currentLoadedChapter?.content || ''
   const isRichContent = Boolean(
@@ -729,6 +826,12 @@ const isCamouflageFeatureActive = isWebviewStealthMode && bossCamouflageEnabled
 const showCamouflageWidget =
   isCamouflageFeatureActive &&
   (camouflageStage === 'collapsed' || camouflageStage === 'expanding')
+const effectiveCamouflageMood =
+  isDraggingCamouflageWidget || camouflagePetMood === 'walk'
+    ? 'walk'
+    : camouflagePetMood
+const camouflageBubble =
+  camouflageBubbleText || buildCamouflageBubbleText(effectiveCamouflageMood)
 const readerShellStyle = isCamouflageFeatureActive
   ? ({
       transformOrigin: buildCamouflageTransformOrigin(camouflageWidgetPosition),
@@ -768,6 +871,9 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
   })
   useClickOutside(appearancePanelRef, showAppearancePanel, () => {
     setShowAppearancePanel(false)
+  })
+  useClickOutside(readingModePanelRef, showReadingModePanel, () => {
+    setShowReadingModePanel(false)
   })
   useClickOutside(sidebarRef, showSidebar, () => {
     setShowSidebar(false)
@@ -1131,7 +1237,7 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
       return
     }
 
-    const range = getChapterWindowRange(focusChapterIndex, novel.chapters.length)
+    const range = getChapterWindowRange(focusChapterIndex, novel.chapters.length, readingMode)
     chapterWindowRangeRef.current = range
 
     const chaptersToLoad: number[] = []
@@ -1549,7 +1655,10 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
           contentRef.current.scrollTop = 0
         }
 
-        await ensureChapterLoaded(novel.filePath, nextChapterIndex, nextRevision)
+        await ensureChapterWindow(nextChapterIndex, {
+          preserveLocation: true,
+          expectedRevision: nextRevision,
+        })
         if (nextRevision !== chapterLoadRevisionRef.current) {
           return
         }
@@ -1580,6 +1689,7 @@ const closeTransientPanels = () => {
   setShowSidebar(false)
   setShowSearch(false)
   setShowAppearancePanel(false)
+  setShowReadingModePanel(false)
   bossMode.closePanel()
 }
 
@@ -1614,6 +1724,64 @@ const restoreCamouflageReader = () => {
   camouflageTimerRef.current = window.setTimeout(() => {
     setCamouflageStage('expanded')
   }, CAMOUFLAGE_ANIMATION_MS)
+}
+
+const clearCamouflageFeedbackTimer = () => {
+  if (camouflageFeedbackTimerRef.current === null) {
+    return
+  }
+
+  window.clearTimeout(camouflageFeedbackTimerRef.current)
+  camouflageFeedbackTimerRef.current = null
+}
+
+const showCamouflageFeedback = (
+  mood: CamouflagePetMood,
+  text: string,
+  duration = CAMOUFLAGE_FEEDBACK_MS
+) => {
+  clearCamouflageFeedbackTimer()
+  setCamouflagePetMood(mood)
+  setCamouflageBubbleText(text)
+  camouflageFeedbackTimerRef.current = window.setTimeout(() => {
+    camouflageFeedbackTimerRef.current = null
+    setCamouflagePetMood(bossCamouflageWanderEnabled ? 'walk' : 'idle')
+    setCamouflageBubbleText('')
+  }, duration)
+}
+
+const handleCamouflageFileDragOver = (event: ReactDragEvent<HTMLButtonElement>) => {
+  if (!showCamouflageWidget) {
+    return
+  }
+
+  event.preventDefault()
+  event.dataTransfer.dropEffect = 'copy'
+  setCamouflagePetMood('mouth_open')
+  setCamouflageBubbleText('啊，文件来了')
+}
+
+const handleCamouflageFileDragLeave = () => {
+  if (camouflagePetMood !== 'mouth_open') {
+    return
+  }
+
+  setCamouflagePetMood(bossCamouflageWanderEnabled ? 'walk' : 'idle')
+  setCamouflageBubbleText('')
+}
+
+const handleCamouflageFileDrop = (event: ReactDragEvent<HTMLButtonElement>) => {
+  event.preventDefault()
+  event.stopPropagation()
+
+  const file = event.dataTransfer.files?.[0]
+  const extension = resolveDroppedFileExtension(file)
+  if (SUPPORTED_DROP_EXTENSIONS.has(extension)) {
+    showCamouflageFeedback('chew', buildCamouflageBubbleText('chew', file?.name), 2200)
+    return
+  }
+
+  showCamouflageFeedback('question', buildCamouflageBubbleText('question', file?.name), 2200)
 }
 
 // 挂件支持拖拽，位置会持久化到设置里，方便下次继续使用。
@@ -1893,13 +2061,20 @@ const handleToggleCamouflage = () => {
     }
   }
 
-  const handleChapterProgressChange = async (nextPercent: number) => {
+  const handleReaderProgressChange = async (nextPercent: number) => {
     const novel = currentNovelRef.current
     if (!novel) {
       return
     }
 
-    await moveToReadingLocation(novel.currentChapter, nextPercent / 100, {
+    const nextLocation = usesWholeBookProgress(readingMode)
+      ? resolveReadingLocationFromOverallProgress(novel, nextPercent)
+      : {
+          chapterIndex: novel.currentChapter,
+          chapterScrollProgress: nextPercent / 100,
+        }
+
+    await moveToReadingLocation(nextLocation.chapterIndex, nextLocation.chapterScrollProgress, {
       preferSmooth: false,
       forceReloadWindow: true,
     })
@@ -2091,6 +2266,48 @@ useEffect(() => {
 }, [bossCamouflageWidgetPosition.x, bossCamouflageWidgetPosition.y])
 
 useEffect(() => {
+  const isBusy =
+    isDraggingCamouflageWidget ||
+    camouflagePetMood === 'mouth_open' ||
+    camouflagePetMood === 'chew' ||
+    camouflagePetMood === 'question'
+
+  if (!showCamouflageWidget || !bossCamouflageWanderEnabled || isBusy) {
+    if (camouflageWanderTimerRef.current !== null) {
+      window.clearInterval(camouflageWanderTimerRef.current)
+      camouflageWanderTimerRef.current = null
+    }
+    if (!isDraggingCamouflageWidget && camouflagePetMood === 'walk') {
+      setCamouflagePetMood('idle')
+    }
+    return
+  }
+
+  setCamouflagePetMood('walk')
+  camouflageWanderTimerRef.current = window.setInterval(() => {
+    const nextPosition = normalizeCamouflageWidgetPosition({
+      x: Math.random() * 0.86 + 0.07,
+      y: Math.random() * 0.76 + 0.08,
+    })
+    setCamouflageWidgetPosition(nextPosition)
+    setBossCamouflageWidgetPosition(nextPosition)
+  }, CAMOUFLAGE_WANDER_INTERVAL_MS)
+
+  return () => {
+    if (camouflageWanderTimerRef.current !== null) {
+      window.clearInterval(camouflageWanderTimerRef.current)
+      camouflageWanderTimerRef.current = null
+    }
+  }
+}, [
+  bossCamouflageWanderEnabled,
+  camouflagePetMood,
+  isDraggingCamouflageWidget,
+  setBossCamouflageWidgetPosition,
+  showCamouflageWidget,
+])
+
+useEffect(() => {
   if (isCamouflageFeatureActive) {
     return
   }
@@ -2116,6 +2333,10 @@ useEffect(() => {
       if (camouflageDragCleanupRef.current) {
         camouflageDragCleanupRef.current()
       }
+      if (camouflageWanderTimerRef.current !== null) {
+        window.clearInterval(camouflageWanderTimerRef.current)
+      }
+      clearCamouflageFeedbackTimer()
   },
   []
 )
@@ -2152,13 +2373,16 @@ useEffect(() => {
       contentRef.current.scrollTop = 0
     }
 
-    void ensureChapterLoaded(currentNovel.filePath, initialChapterIndex, nextRevision)
+    void ensureChapterWindow(initialChapterIndex, {
+      preserveLocation: true,
+      expectedRevision: nextRevision,
+    })
       .catch((error) => {
         if (nextRevision === chapterLoadRevisionRef.current) {
           console.error('初始化章节内容失败:', error)
         }
       })
-  }, [currentNovel?.filePath])
+  }, [currentNovel?.filePath, readingMode])
 
   useEffect(() => {
     if (!pendingChapterScrollRef.current) {
@@ -2205,7 +2429,7 @@ useEffect(() => {
       }
 
       const preloadDesktopOverlayChapters = async () => {
-        const prefetchAhead = getDesktopOverlayPrefetchAhead(currentNovel.format)
+        const prefetchAhead = getDesktopOverlayPrefetchAhead(currentNovel.format, readingMode)
         const targetChapterIndex = Math.min(
           currentNovel.chapters.length - 1,
           currentNovel.currentChapter + prefetchAhead
@@ -2244,6 +2468,7 @@ useEffect(() => {
     currentNovel?.filePath,
     currentNovel?.currentChapter,
     currentNovel?.format,
+    readingMode,
   ])
 
   useEffect(() => {
@@ -2854,6 +3079,40 @@ return (
                   </div>
                 )}
               </div>
+            <div ref={readingModePanelRef} className={styles.toolbarPopover}>
+              <button
+                type="button"
+                onClick={() => setShowReadingModePanel((value) => !value)}
+                className={`${styles.toolbarButton} ${
+                  showReadingModePanel ? styles.active : ''
+                }`}
+                title="阅读方式"
+              >
+                阅读方式
+              </button>
+              {showReadingModePanel && bossMode.isChromeVisible && (
+                <div className={styles.modePanel}>
+                  <div className={styles.appearancePanelHeader}>
+                    <span>阅读方式</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowReadingModePanel(false)}
+                      className={styles.panelCloseButton}
+                    >
+                      收起
+                    </button>
+                  </div>
+                  <ReadingModeControls
+                    compact
+                    readingMode={readingMode}
+                    onReadingModeChange={(nextMode) => {
+                      setReadingMode(nextMode)
+                      setShowReadingModePanel(false)
+                    }}
+                  />
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => setShowSearch(true)}
@@ -3146,16 +3405,19 @@ return (
             min={0}
             max={100}
             step={1}
-            value={currentChapterProgressPercent}
+            value={readerProgressPercent}
             onChange={(value) => {
-              void handleChapterProgressChange(value)
+              void handleReaderProgressChange(value)
             }}
             commitOnRelease
             showValue={false}
             className={styles.readerProgressSlider}
           />
           <div className={styles.progressInfo}>
-            <span>章节进度 {Math.round(currentChapterProgressPercent)}%</span>
+            <span>
+              {useWholeBookProgress ? '整本进度' : '章节进度'}{' '}
+              {Math.round(readerProgressPercent)}%
+            </span>
             <span>章节 {currentNovel.currentChapter + 1} / {currentNovel.chapters.length}</span>
             <span>{currentChapter?.wordCount || 0} 字</span>
           </div>
@@ -3191,13 +3453,19 @@ return (
         }
         petKind={bossCamouflagePetKind}
         action={
-          bossCamouflageWanderEnabled
+          effectiveCamouflageMood === 'mouth_open' || effectiveCamouflageMood === 'chew'
+            ? 'mouth_open'
+            : effectiveCamouflageMood === 'question'
+            ? 'question'
+            : effectiveCamouflageMood === 'walk'
             ? 'walk'
             : bossCamouflagePetKind === 'cat'
             ? 'lick_paw'
             : 'sit_tail'
         }
-        wandering={bossCamouflageWanderEnabled}
+        wandering={effectiveCamouflageMood === 'walk'}
+        bubble={camouflageBubble}
+        mood={effectiveCamouflageMood}
         dragging={isDraggingCamouflageWidget}
         onClick={
           bossCamouflageRestoreTrigger === 'click' ? restoreCamouflageReader : undefined
@@ -3208,6 +3476,9 @@ return (
         onMouseEnter={
           bossCamouflageRestoreTrigger === 'hover' ? restoreCamouflageReader : undefined
         }
+        onDragOver={handleCamouflageFileDragOver}
+        onDragLeave={handleCamouflageFileDragLeave}
+        onDrop={handleCamouflageFileDrop}
         onPointerDown={handleCamouflageWidgetPointerDown}
       />
     )}

@@ -667,6 +667,23 @@
   padding-right: 4px;
 }
 
+.modePanel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 24;
+  width: min(340px, calc(100vw - 32px));
+  display: grid;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  border-radius: var(--neo-radius-lg);
+  background: rgb(var(--neo-panel));
+  border: var(--neo-border-width) solid rgb(var(--neo-ink));
+  box-shadow: var(--neo-shadow-offset-md) var(--neo-shadow-offset-md) 0
+    rgb(var(--neo-shadow));
+  animation: scaleIn 0.18s ease-out;
+}
+
 .bossPanel {
   position: fixed;
   z-index: 30;

@@ -10,6 +10,8 @@ interface CamouflagePendantProps
   petKind?: CamouflagePetKind
   action?: PetAction
   wandering?: boolean
+  mood?: 'idle' | 'walk' | 'mouth_open' | 'chew' | 'question'
+  bubble?: string
   title?: string
   subtitle?: string
   dragging?: boolean
@@ -24,6 +26,8 @@ export default function CamouflagePendant({
   petKind = 'dog',
   action = 'walk',
   wandering = false,
+  mood = 'idle',
+  bubble = '',
   title = '伪装中',
   subtitle = '双击展开阅读框',
   dragging = false,
@@ -34,6 +38,9 @@ export default function CamouflagePendant({
     styles.pendant,
     variant === 'preview' ? styles.preview : '',
     wandering ? styles.wandering : '',
+    mood === 'mouth_open' ? styles.mouthOpen : '',
+    mood === 'chew' ? styles.chewing : '',
+    mood === 'question' ? styles.questioning : '',
     dragging ? styles.dragging : '',
     className,
   ]
@@ -42,6 +49,7 @@ export default function CamouflagePendant({
 
   return (
     <button type="button" className={pendantClassName} {...props}>
+      {bubble && <span className={styles.bubble}>{bubble}</span>}
       <PetSprite petKind={petKind} action={action} scale={0.72} className={styles.pet} />
       <span className={styles.copy}>
         <span className={styles.title}>{title}</span>

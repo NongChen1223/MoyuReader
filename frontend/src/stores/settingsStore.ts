@@ -5,6 +5,7 @@ import type {
   CamouflagePetKind,
   CamouflageRestoreTrigger,
   CamouflageWidgetPosition,
+  ReadingMode,
   ReadingSettings,
   ShortcutAction,
   ShortcutMap,
@@ -75,6 +76,20 @@ function normalizeCamouflageRestoreTrigger(value?: string): CamouflageRestoreTri
     : 'doubleClick'
 }
 
+function normalizeReadingMode(value?: string): ReadingMode {
+  return value === 'continuous-scroll' ||
+    value === 'paged' ||
+    value === 'auto-scroll' ||
+    value === 'comic-strip' ||
+    value === 'comic-single' ||
+    value === 'comic-double' ||
+    value === 'pdf-continuous' ||
+    value === 'pdf-single-fit' ||
+    value === 'chapter-scroll'
+    ? value
+    : 'chapter-scroll'
+}
+
 interface SettingsState extends ReadingSettings {
   bossMode: boolean
   bossOpacity: number
@@ -86,6 +101,7 @@ interface SettingsState extends ReadingSettings {
   setBackgroundColor: (color: string) => void
   setTextColor: (color: string) => void
   setPageWidth: (width: number) => void
+  setReadingMode: (readingMode: ReadingMode) => void
   setTheme: (theme: 'light' | 'dark' | 'sepia') => void
   setBossModeType: (bossModeType: 'basic' | 'full') => void
   setBossRevealDelay: (delay: number) => void
@@ -111,6 +127,7 @@ const defaultSettings: ReadingSettings = {
   backgroundColor: '#ffffff',
   textColor: '#333333',
   pageWidth: 78,
+  readingMode: 'chapter-scroll',
   theme: 'light',
   bossModeType: 'basic',
   bossRevealDelay: 80,
@@ -198,6 +215,8 @@ export const useSettingsStore = create<SettingsState>()(
       setBackgroundColor: (backgroundColor) => set({ backgroundColor }),
       setTextColor: (textColor) => set({ textColor }),
       setPageWidth: (pageWidth) => set({ pageWidth: normalizePageWidth(pageWidth) }),
+      setReadingMode: (readingMode) =>
+        set({ readingMode: normalizeReadingMode(readingMode) }),
       setTheme: (theme) => set({ theme }),
       setBossModeType: (bossModeType) => set({ bossModeType }),
       setBossRevealDelay: (bossRevealDelay) => set({ bossRevealDelay }),
@@ -260,6 +279,9 @@ export const useSettingsStore = create<SettingsState>()(
           ),
           fontWeight: normalizeFontWeight(
             typedPersistedState.fontWeight ?? currentState.fontWeight
+          ),
+          readingMode: normalizeReadingMode(
+            typedPersistedState.readingMode ?? currentState.readingMode
           ),
           bossCamouflageEnabled: Boolean(
             typedPersistedState.bossCamouflageEnabled ?? currentState.bossCamouflageEnabled
