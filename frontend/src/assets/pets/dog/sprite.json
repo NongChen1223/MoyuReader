@@ -1,0 +1,401 @@
+{
+  "kind": "dog",
+  "frameSize": {
+    "width": 96,
+    "height": 96
+  },
+  "framesPerAction": 10,
+  "image": "sprite.svg",
+  "actions": {
+    "walk": {
+      "from": 0,
+      "to": 9,
+      "frameCount": 10,
+      "loop": true,
+      "description": "走路游荡"
+    },
+    "sit_tail": {
+      "from": 10,
+      "to": 19,
+      "frameCount": 10,
+      "loop": true,
+      "description": "坐着摇尾巴"
+    },
+    "mouth_open": {
+      "from": 20,
+      "to": 29,
+      "frameCount": 10,
+      "loop": true,
+      "description": "张嘴吃文件"
+    },
+    "question": {
+      "from": 30,
+      "to": 39,
+      "frameCount": 10,
+      "loop": true,
+      "description": "疑问反馈"
+    }
+  },
+  "frames": [
+    {
+      "index": 0,
+      "action": "walk",
+      "x": 0,
+      "y": 0,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 1,
+      "action": "walk",
+      "x": 96,
+      "y": 0,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 2,
+      "action": "walk",
+      "x": 192,
+      "y": 0,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 3,
+      "action": "walk",
+      "x": 288,
+      "y": 0,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 4,
+      "action": "walk",
+      "x": 384,
+      "y": 0,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 5,
+      "action": "walk",
+      "x": 480,
+      "y": 0,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 6,
+      "action": "walk",
+      "x": 576,
+      "y": 0,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 7,
+      "action": "walk",
+      "x": 672,
+      "y": 0,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 8,
+      "action": "walk",
+      "x": 768,
+      "y": 0,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 9,
+      "action": "walk",
+      "x": 864,
+      "y": 0,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 10,
+      "action": "sit_tail",
+      "x": 0,
+      "y": 96,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 11,
+      "action": "sit_tail",
+      "x": 96,
+      "y": 96,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 12,
+      "action": "sit_tail",
+      "x": 192,
+      "y": 96,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 13,
+      "action": "sit_tail",
+      "x": 288,
+      "y": 96,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 14,
+      "action": "sit_tail",
+      "x": 384,
+      "y": 96,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 15,
+      "action": "sit_tail",
+      "x": 480,
+      "y": 96,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 16,
+      "action": "sit_tail",
+      "x": 576,
+      "y": 96,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 17,
+      "action": "sit_tail",
+      "x": 672,
+      "y": 96,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 18,
+      "action": "sit_tail",
+      "x": 768,
+      "y": 96,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 19,
+      "action": "sit_tail",
+      "x": 864,
+      "y": 96,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 20,
+      "action": "mouth_open",
+      "x": 0,
+      "y": 192,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 21,
+      "action": "mouth_open",
+      "x": 96,
+      "y": 192,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 22,
+      "action": "mouth_open",
+      "x": 192,
+      "y": 192,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 23,
+      "action": "mouth_open",
+      "x": 288,
+      "y": 192,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 24,
+      "action": "mouth_open",
+      "x": 384,
+      "y": 192,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 25,
+      "action": "mouth_open",
+      "x": 480,
+      "y": 192,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 26,
+      "action": "mouth_open",
+      "x": 576,
+      "y": 192,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 27,
+      "action": "mouth_open",
+      "x": 672,
+      "y": 192,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 28,
+      "action": "mouth_open",
+      "x": 768,
+      "y": 192,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 29,
+      "action": "mouth_open",
+      "x": 864,
+      "y": 192,
+      "width": 96,
+      "height": 96,
+      "durationMs": 120
+    },
+    {
+      "index": 30,
+      "action": "question",
+      "x": 0,
+      "y": 288,
+      "width": 96,
+      "height": 96,
+      "durationMs": 160
+    },
+    {
+      "index": 31,
+      "action": "question",
+      "x": 96,
+      "y": 288,
+      "width": 96,
+      "height": 96,
+      "durationMs": 160
+    },
+    {
+      "index": 32,
+      "action": "question",
+      "x": 192,
+      "y": 288,
+      "width": 96,
+      "height": 96,
+      "durationMs": 160
+    },
+    {
+      "index": 33,
+      "action": "question",
+      "x": 288,
+      "y": 288,
+      "width": 96,
+      "height": 96,
+      "durationMs": 160
+    },
+    {
+      "index": 34,
+      "action": "question",
+      "x": 384,
+      "y": 288,
+      "width": 96,
+      "height": 96,
+      "durationMs": 160
+    },
+    {
+      "index": 35,
+      "action": "question",
+      "x": 480,
+      "y": 288,
+      "width": 96,
+      "height": 96,
+      "durationMs": 160
+    },
+    {
+      "index": 36,
+      "action": "question",
+      "x": 576,
+      "y": 288,
+      "width": 96,
+      "height": 96,
+      "durationMs": 160
+    },
+    {
+      "index": 37,
+      "action": "question",
+      "x": 672,
+      "y": 288,
+      "width": 96,
+      "height": 96,
+      "durationMs": 160
+    },
+    {
+      "index": 38,
+      "action": "question",
+      "x": 768,
+      "y": 288,
+      "width": 96,
+      "height": 96,
+      "durationMs": 160
+    },
+    {
+      "index": 39,
+      "action": "question",
+      "x": 864,
+      "y": 288,
+      "width": 96,
+      "height": 96,
+      "durationMs": 160
+    }
+  ]
+}

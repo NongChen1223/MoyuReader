@@ -8,6 +8,7 @@ const nextButton = document.getElementById('next-button')
 const closeButton = document.getElementById('close-button')
 const camouflageButton = document.getElementById('camouflage-button')
 const camouflagePendant = document.getElementById('camouflage-pendant')
+const camouflagePetSprite = document.getElementById('camouflage-pet-sprite')
 const appearanceButton = document.getElementById('appearance-button')
 const appearancePanel = document.getElementById('appearance-panel')
 const appearanceCloseButton = document.getElementById('appearance-close-button')
@@ -35,6 +36,9 @@ const state = {
   textColor: '#f4f7fc',
   theme: 'dark',
   camouflageEnabled: false,
+  camouflagePetKind: 'dog',
+  camouflageWanderEnabled: false,
+  camouflageRestoreTrigger: 'click',
   camouflageCollapsed: false,
   expandedBounds: null,
   expandedBoundsApplied: false,
@@ -57,6 +61,44 @@ const state = {
   lastOpacityInputAt: 0,
   lastUserScrollAt: 0,
   userControlsPosition: false,
+}
+
+function updateCamouflagePetSprite() {
+  if (!camouflagePetSprite) {
+    return
+  }
+
+  const petKind = state.camouflagePetKind === 'cat' ? 'cat' : 'dog'
+  const actionClass = state.camouflageWanderEnabled ? 'pet-action-walk' : 'pet-action-idle'
+  camouflagePetSprite.className = `pet-sprite pet-sprite-${petKind} ${actionClass}`
+  camouflagePendant.title =
+    `${getRestoreTriggerLabel()} · ${petKind === 'cat' ? '像素小猫' : '像素小狗'}`
+}
+
+function getRestoreTriggerLabel() {
+  if (state.camouflageRestoreTrigger === 'doubleClick') {
+    return '双击恢复摸鱼窗口'
+  }
+
+  if (state.camouflageRestoreTrigger === 'hover') {
+    return '鼠标移入恢复摸鱼窗口'
+  }
+
+  if (state.camouflageRestoreTrigger === 'shortcut') {
+    return '按老板键恢复摸鱼窗口'
+  }
+
+  return '单击恢复摸鱼窗口'
+}
+
+function normalizeRestoreTrigger(value) {
+  return value === 'doubleClick' || value === 'hover' || value === 'shortcut' || value === 'click'
+    ? value
+    : 'click'
+}
+
+function shouldRestoreFromPendant(eventType) {
+  return state.camouflageRestoreTrigger === eventType
 }
 
 const CHROME_HIDE_DELAY_MS = 2200
@@ -904,12 +946,16 @@ window.moyuOverlay?.onState((payload) => {
     state.chapters = Array.isArray(payload.chapters) ? payload.chapters : []
     state.currentChapter = Number(payload.currentChapter || 0)
     state.camouflageEnabled = Boolean(payload.camouflageEnabled)
+    state.camouflagePetKind = payload.camouflagePetKind === 'cat' ? 'cat' : 'dog'
+    state.camouflageWanderEnabled = Boolean(payload.camouflageWanderEnabled)
+    state.camouflageRestoreTrigger = normalizeRestoreTrigger(payload.camouflageRestoreTrigger)
     if (!state.camouflageEnabled && state.camouflageCollapsed) {
       void restoreFromCamouflagePendant()
     }
     renderChapterOptions(state.chapters, state.currentChapter)
     applyOpacity(payload.opacity || state.opacity, { fromRemote: true })
     camouflageButton.textContent = state.camouflageEnabled ? '挂件开' : '挂件关'
+    updateCamouflagePetSprite()
     if (!state.isDraggingProgress) {
       updateProgressLabel(payload.progress || 0)
     }
@@ -932,6 +978,8 @@ window.moyuOverlay?.onState((payload) => {
     scrollToReadingLocation(payload.chapterIndex, payload.progress)
   }
 })
+
+updateCamouflagePetSprite()
 
 chapterToggleButton.addEventListener('click', (event) => {
   event.stopPropagation()
@@ -1132,7 +1180,24 @@ camouflageButton.addEventListener('click', () => {
 
 camouflagePendant.addEventListener('click', (event) => {
   event.preventDefault()
-  if (state.isDragging || state.suppressPendantClick) {
+  if (!shouldRestoreFromPendant('click') || state.isDragging || state.suppressPendantClick) {
+    return
+  }
+
+  void restoreFromCamouflagePendant()
+})
+
+camouflagePendant.addEventListener('dblclick', (event) => {
+  event.preventDefault()
+  if (!shouldRestoreFromPendant('doubleClick') || state.isDragging || state.suppressPendantClick) {
+    return
+  }
+
+  void restoreFromCamouflagePendant()
+})
+
+camouflagePendant.addEventListener('mouseenter', () => {
+  if (!shouldRestoreFromPendant('hover') || state.isDragging || state.suppressPendantClick) {
     return
   }
 

@@ -40,7 +40,10 @@ export interface WindowBridge {
     currentChapter: number,
     progress: number,
     opacity: number,
-    camouflageEnabled: boolean
+    camouflageEnabled: boolean,
+    camouflagePetKind: 'dog' | 'cat',
+    camouflageWanderEnabled: boolean,
+    camouflageRestoreTrigger: 'click' | 'doubleClick' | 'hover' | 'shortcut'
   ): Promise<void>
   consumeDesktopReaderOverlayActions(): Promise<string>
   getDesktopReaderOverlayReadingLocation(): Promise<string>

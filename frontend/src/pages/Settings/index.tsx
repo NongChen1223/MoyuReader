@@ -8,6 +8,7 @@ import {
   BarChart3,
   Keyboard,
   ArrowLeft,
+  PawPrint,
 } from 'lucide-react'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import AppearanceSettings from './tabs/AppearanceSettings'
@@ -15,6 +16,7 @@ import ReadingSettings from './tabs/ReadingSettings'
 import StorageSettings from './tabs/StorageSettings'
 import StatisticsSettings from './tabs/StatisticsSettings'
 import KeyboardSettings from './tabs/KeyboardSettings'
+import PetSettings from './tabs/PetSettings'
 import styles from './Settings.module.scss'
 
 interface SettingSection {
@@ -47,6 +49,12 @@ export default function Settings() {
       label: '阅读设置',
       icon: <BookOpen size={20} />,
       component: <ReadingSettings />,
+    },
+    {
+      id: 'pet',
+      label: '挂件设置',
+      icon: <PawPrint size={20} />,
+      component: <PetSettings />,
     },
     {
       id: 'storage',

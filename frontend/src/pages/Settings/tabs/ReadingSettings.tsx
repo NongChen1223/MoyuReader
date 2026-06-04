@@ -1,6 +1,5 @@
 import { useSettingsStore } from '@/stores/settingsStore'
 import ReadingAppearanceControls from '@/components/features/ReadingAppearanceControls'
-import CamouflagePreview from '@/components/features/CamouflagePreview'
 import Slider from '@/components/common/Slider'
 import Toggle from '@/components/common/Toggle'
 import styles from './ReadingSettings.module.scss'
@@ -173,11 +172,6 @@ export default function ReadingSettings() {
               透明背景，仅保留文字
             </div>
           </div>
-        </div>
-
-        <div className={styles.bossModePreview}>
-          <p className={styles.previewLabel}>收纳伪装演示：</p>
-          <CamouflagePreview />
         </div>
       </section>
     </div>

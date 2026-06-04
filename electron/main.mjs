@@ -610,6 +610,15 @@ function registerIpcHandlers() {
       progress: payload.progress,
       opacity: payload.opacity,
       camouflageEnabled: payload.camouflageEnabled,
+      camouflagePetKind: payload.camouflagePetKind === 'cat' ? 'cat' : 'dog',
+      camouflageWanderEnabled: Boolean(payload.camouflageWanderEnabled),
+      camouflageRestoreTrigger:
+        payload.camouflageRestoreTrigger === 'click' ||
+        payload.camouflageRestoreTrigger === 'hover' ||
+        payload.camouflageRestoreTrigger === 'shortcut' ||
+        payload.camouflageRestoreTrigger === 'doubleClick'
+          ? payload.camouflageRestoreTrigger
+          : 'click',
     }
     sendOverlayState({
       type: 'controls',

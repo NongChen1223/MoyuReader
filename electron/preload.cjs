@@ -97,7 +97,10 @@ contextBridge.exposeInMainWorld('moyuDesktop', {
       currentChapter,
       progress,
       opacity,
-      camouflageEnabled
+      camouflageEnabled,
+      camouflagePetKind,
+      camouflageWanderEnabled,
+      camouflageRestoreTrigger
     ) =>
       invoke('desktop:window:updateDesktopReaderOverlayControls', {
         chaptersJSON,
@@ -105,6 +108,9 @@ contextBridge.exposeInMainWorld('moyuDesktop', {
         progress,
         opacity,
         camouflageEnabled,
+        camouflagePetKind,
+        camouflageWanderEnabled,
+        camouflageRestoreTrigger,
       }),
     consumeDesktopReaderOverlayActions: () =>
       invoke('desktop:window:consumeDesktopReaderOverlayActions'),

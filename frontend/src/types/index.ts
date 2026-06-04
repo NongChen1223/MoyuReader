@@ -48,6 +48,9 @@ export interface CamouflageWidgetPosition {
   y: number
 }
 
+export type CamouflagePetKind = 'dog' | 'cat'
+export type CamouflageRestoreTrigger = 'click' | 'doubleClick' | 'hover' | 'shortcut'
+
 export interface BossReadingAppearance {
   fontSize: number
   fontWeight: number
@@ -69,6 +72,9 @@ export interface ReadingSettings {
   bossRevealDelay: number
   bossHideDelay: number
   bossCamouflageEnabled: boolean
+  bossCamouflagePetKind: CamouflagePetKind
+  bossCamouflageWanderEnabled: boolean
+  bossCamouflageRestoreTrigger: CamouflageRestoreTrigger
   bossCamouflageWidgetPosition: CamouflageWidgetPosition
   bossReadingAppearance: BossReadingAppearance
 }

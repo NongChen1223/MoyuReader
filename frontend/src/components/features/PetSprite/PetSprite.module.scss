@@ -1,0 +1,20 @@
+.sprite {
+  --pet-frame-size: 96px;
+  --pet-scale: 1;
+  --pet-sheet-x: 0px;
+  --pet-sheet-y: 0px;
+  --pet-sheet: none;
+
+  width: calc(var(--pet-frame-size) * var(--pet-scale));
+  height: calc(var(--pet-frame-size) * var(--pet-scale));
+  display: block;
+  background-image: var(--pet-sheet);
+  background-repeat: no-repeat;
+  background-size: calc(var(--pet-frame-size) * 10 * var(--pet-scale))
+    calc(var(--pet-frame-size) * 4 * var(--pet-scale));
+  background-position:
+    calc(var(--pet-sheet-x) * var(--pet-scale) * -1)
+    calc(var(--pet-sheet-y) * var(--pet-scale) * -1);
+  image-rendering: pixelated;
+  filter: drop-shadow(4px 4px 0 rgb(var(--neo-shadow)));
+}

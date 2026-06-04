@@ -1,27 +1,50 @@
 .preview {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
 }
 
 .stage {
   position: relative;
-  min-height: 236px;
+  height: 212px;
   border-radius: var(--neo-radius-md);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent),
+    radial-gradient(circle at 18% 12%, rgba(var(--neo-accent), 0.2), transparent 30%),
+    linear-gradient(135deg, rgba(var(--neo-ink), 0.08), transparent 42%),
     rgb(var(--neo-panel-soft));
   border: var(--neo-border-width-sm) solid rgb(var(--neo-ink));
   box-shadow: 4px 4px 0 rgb(var(--neo-shadow));
-  overflow: hidden;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.stage::-webkit-scrollbar {
+  width: 8px;
+}
+
+.stage::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.stage::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(var(--neo-ink), 0.45);
+  border-radius: 999px;
+  background: rgb(var(--neo-panel-accent));
 }
 
 .demoShell {
-  position: absolute;
-  inset: 0;
+  position: relative;
+  width: min(92%, 560px);
+  min-height: 172px;
+  margin: 14px auto 18px;
   display: flex;
   flex-direction: column;
-  transform-origin: calc(100% - 96px) 58px;
+  border: 2px solid rgb(var(--neo-ink));
+  border-radius: 14px;
+  background: rgba(var(--neo-panel), 0.34);
+  box-shadow: 5px 5px 0 rgb(var(--neo-shadow));
+  overflow: hidden;
+  transform-origin: calc(100% - 72px) 42px;
 }
 
 .demoShellCollapsing {
@@ -38,39 +61,106 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.9rem 1rem;
-  background: rgba(255, 255, 255, 0.92);
+  gap: var(--spacing-sm);
+  padding: 0;
+  background: rgba(var(--neo-panel), 0.86);
   color: rgb(var(--neo-ink));
-  font-size: 0.78rem;
+  font-size: 0.64rem;
   font-weight: 700;
+  backdrop-filter: blur(2px);
 }
 
 .demoToolbar {
-  border-bottom: var(--neo-border-width-sm) solid rgba(var(--neo-ink), 0.16);
+  border-bottom: 2px solid rgb(var(--neo-ink));
+}
+
+.demoNav,
+.demoActions {
+  display: flex;
+  align-items: stretch;
+  min-height: 42px;
+  min-width: 0;
+
+  button {
+    min-width: 46px;
+    padding: 0 0.46rem;
+    border: 0;
+    border-right: 2px solid rgb(var(--neo-ink));
+    background: transparent;
+    color: rgb(var(--neo-ink));
+    font-size: 0.6rem;
+    font-weight: 900;
+  }
+}
+
+.demoActions {
+  margin-left: auto;
+
+  button:last-child {
+    border-right: 0;
+    background: rgba(255, 95, 95, 0.18);
+  }
 }
 
 .demoContent {
   flex: 1;
   display: grid;
-  gap: 0.9rem;
-  padding: 1.2rem 1.1rem;
-  color: rgba(var(--text-primary), 0.82);
-  font-size: 0.92rem;
-  line-height: 1.72;
+  align-content: start;
+  gap: 0.5rem;
+  min-height: 96px;
+  max-height: 118px;
+  padding: 0.82rem 0.9rem;
+  color: rgba(var(--neo-ink), 0.78);
+  font-size: 0.74rem;
+  line-height: 1.6;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 
   p {
     margin: 0;
   }
+
+  p:first-child {
+    font-weight: 900;
+    color: rgb(var(--neo-ink));
+  }
+}
+
+.demoContent::-webkit-scrollbar {
+  width: 6px;
+}
+
+.demoContent::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(var(--neo-ink), 0.28);
 }
 
 .demoFooter {
-  border-top: var(--neo-border-width-sm) solid rgba(var(--neo-ink), 0.16);
+  min-height: 32px;
+  padding: 0 0.62rem;
+  border-top: 2px solid rgb(var(--neo-ink));
+}
+
+.demoProgress {
+  flex: 1;
+  height: 8px;
+  border: 2px solid rgb(var(--neo-ink));
+  border-radius: 999px;
+  background: rgba(var(--neo-ink), 0.08);
+  overflow: hidden;
+
+  span {
+    display: block;
+    width: 46%;
+    height: 100%;
+    background: rgb(var(--neo-accent));
+  }
 }
 
 .pendantDock {
   position: absolute;
-  top: 18px;
-  right: 18px;
+  top: 22px;
+  right: 22px;
   opacity: 0;
   pointer-events: none;
   transform: translateY(12px) scale(0.92);
@@ -90,6 +180,50 @@
   font-size: 0.82rem;
   line-height: 1.6;
   color: rgb(var(--neo-text-muted));
+}
+
+.shortcutHint {
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  z-index: 3;
+  padding: 0.46rem 0.72rem;
+  border: 2px solid rgb(var(--neo-ink));
+  border-radius: 10px;
+  background: rgb(var(--neo-panel-accent));
+  box-shadow: 3px 3px 0 rgb(var(--neo-shadow));
+  color: rgb(var(--neo-ink));
+  font-size: 0.74rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.actionGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.actionCard {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 0.1rem;
+  padding: 0.24rem 0.18rem 0.36rem;
+  border: 2px solid rgb(var(--neo-ink));
+  border-radius: 12px;
+  background: rgb(var(--neo-panel));
+  box-shadow: 3px 3px 0 rgb(var(--neo-shadow));
+  color: rgb(var(--neo-ink));
+  font-size: 0.62rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+@media (max-width: 620px) {
+  .actionGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @keyframes previewCollapse {

@@ -142,14 +142,20 @@ const windowBridge: WindowBridge = {
     currentChapter,
     progressValue,
     opacity,
-    camouflageEnabled
+    camouflageEnabled,
+    camouflagePetKind,
+    camouflageWanderEnabled,
+    camouflageRestoreTrigger
   ) {
     return getElectronDesktopApi().window.updateDesktopReaderOverlayControls(
       chaptersJSON,
       currentChapter,
       progressValue,
       opacity,
-      camouflageEnabled
+      camouflageEnabled,
+      camouflagePetKind,
+      camouflageWanderEnabled,
+      camouflageRestoreTrigger
     )
   },
   consumeDesktopReaderOverlayActions() {

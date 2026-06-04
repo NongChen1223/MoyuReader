@@ -548,6 +548,9 @@ export default function Reader() {
     bossOpacity,
     bossReadingAppearance,
     bossCamouflageEnabled,
+    bossCamouflagePetKind,
+    bossCamouflageWanderEnabled,
+    bossCamouflageRestoreTrigger,
     bossCamouflageWidgetPosition,
     keyboardShortcuts,
     setFontSize,
@@ -835,6 +838,9 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
       chapterProgress: currentChapterProgressPercent,
       opacity: nextOpacity,
       camouflageEnabled: bossCamouflageEnabled,
+      camouflagePetKind: bossCamouflagePetKind,
+      camouflageWanderEnabled: bossCamouflageWanderEnabled,
+      camouflageRestoreTrigger: bossCamouflageRestoreTrigger,
     })
 
     const chapterTitles = novel.chapters.map((chapter) => chapter.title)
@@ -843,7 +849,10 @@ const camouflageWidgetClassName = `${styles.camouflageWidget} ${
       novel.currentChapter,
       deriveChapterProgressFromOverall(novel, novel.currentChapter) * 100,
       nextOpacity,
-      bossCamouflageEnabled
+      bossCamouflageEnabled,
+      bossCamouflagePetKind,
+      bossCamouflageWanderEnabled,
+      bossCamouflageRestoreTrigger
     )
   }
 
@@ -2372,6 +2381,9 @@ useEffect(() => {
   }, [
     currentNovel?.filePath,
     bossCamouflageEnabled,
+    bossCamouflagePetKind,
+    bossCamouflageWanderEnabled,
+    bossCamouflageRestoreTrigger,
     overlayChapterTitlesSignature,
     useDesktopOverlay,
     isStealthMode,
@@ -2578,6 +2590,15 @@ useEffect(() => {
         setShowSearch(true)
       } else if (matchesShortcut(event, keyboardShortcuts.toggleBossMode) && !isTypingTarget) {
         event.preventDefault()
+        if (
+          isCamouflageFeatureActive &&
+          camouflageStage === 'collapsed' &&
+          bossCamouflageRestoreTrigger === 'shortcut'
+        ) {
+          restoreCamouflageReader()
+          return
+        }
+
         void handleToggleStealthMode()
       } else if (matchesShortcut(event, keyboardShortcuts.goHome) && !isTypingTarget) {
         event.preventDefault()
@@ -2599,7 +2620,18 @@ useEffect(() => {
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [bossMode, bossOpacity, currentNovel, handleReturnHome, isStealthMode, keyboardShortcuts])
+  }, [
+    bossCamouflageRestoreTrigger,
+    bossMode,
+    bossOpacity,
+    camouflageStage,
+    currentNovel,
+    handleReturnHome,
+    isCamouflageFeatureActive,
+    isStealthMode,
+    keyboardShortcuts,
+    restoreCamouflageReader,
+  ])
 
   useEffect(() => {
     const contentElement = contentRef.current
@@ -3136,9 +3168,46 @@ return (
         className={camouflageWidgetClassName}
         style={camouflageWidgetStyle}
         title="伪装中"
-        subtitle={isDraggingCamouflageWidget ? '拖动挂件位置' : '双击展开阅读框'}
+        subtitle={
+          isDraggingCamouflageWidget
+            ? '拖动挂件位置'
+            : bossCamouflageWanderEnabled
+            ? `游荡中 · ${
+                bossCamouflageRestoreTrigger === 'click'
+                  ? '单击展开'
+                  : bossCamouflageRestoreTrigger === 'hover'
+                  ? '移入展开'
+                  : bossCamouflageRestoreTrigger === 'shortcut'
+                  ? '老板键展开'
+                  : '双击展开'
+              }`
+            : bossCamouflageRestoreTrigger === 'click'
+            ? '单击展开阅读框'
+            : bossCamouflageRestoreTrigger === 'hover'
+            ? '移入展开阅读框'
+            : bossCamouflageRestoreTrigger === 'shortcut'
+            ? '按老板键展开'
+            : '双击展开阅读框'
+        }
+        petKind={bossCamouflagePetKind}
+        action={
+          bossCamouflageWanderEnabled
+            ? 'walk'
+            : bossCamouflagePetKind === 'cat'
+            ? 'lick_paw'
+            : 'sit_tail'
+        }
+        wandering={bossCamouflageWanderEnabled}
         dragging={isDraggingCamouflageWidget}
-        onDoubleClick={restoreCamouflageReader}
+        onClick={
+          bossCamouflageRestoreTrigger === 'click' ? restoreCamouflageReader : undefined
+        }
+        onDoubleClick={
+          bossCamouflageRestoreTrigger === 'doubleClick' ? restoreCamouflageReader : undefined
+        }
+        onMouseEnter={
+          bossCamouflageRestoreTrigger === 'hover' ? restoreCamouflageReader : undefined
+        }
         onPointerDown={handleCamouflageWidgetPointerDown}
       />
     )}

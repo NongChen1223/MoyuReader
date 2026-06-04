@@ -1,9 +1,15 @@
 import type { ButtonHTMLAttributes } from 'react'
+import type { CamouflagePetKind } from '@/types'
+import PetSprite from '@/components/features/PetSprite'
+import type { PetAction } from '@/components/features/PetSprite'
 import styles from './CamouflagePendant.module.scss'
 
 interface CamouflagePendantProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   variant?: 'default' | 'preview'
+  petKind?: CamouflagePetKind
+  action?: PetAction
+  wandering?: boolean
   title?: string
   subtitle?: string
   dragging?: boolean
@@ -15,6 +21,9 @@ interface CamouflagePendantProps
  */
 export default function CamouflagePendant({
   variant = 'default',
+  petKind = 'dog',
+  action = 'walk',
+  wandering = false,
   title = '伪装中',
   subtitle = '双击展开阅读框',
   dragging = false,
@@ -24,6 +33,7 @@ export default function CamouflagePendant({
   const pendantClassName = [
     styles.pendant,
     variant === 'preview' ? styles.preview : '',
+    wandering ? styles.wandering : '',
     dragging ? styles.dragging : '',
     className,
   ]
@@ -32,16 +42,10 @@ export default function CamouflagePendant({
 
   return (
     <button type="button" className={pendantClassName} {...props}>
-      <span className={styles.pin} aria-hidden="true" />
-      <span className={styles.badge}>GIF</span>
-      <span className={styles.mediaCard} aria-hidden="true">
-        <span className={styles.playIcon} />
-        <span className={styles.signalDot} />
-      </span>
+      <PetSprite petKind={petKind} action={action} scale={0.72} className={styles.pet} />
       <span className={styles.copy}>
         <span className={styles.title}>{title}</span>
         <span className={styles.subtitle}>{subtitle}</span>
-        <span className={styles.accentLine} aria-hidden="true" />
       </span>
     </button>
   )

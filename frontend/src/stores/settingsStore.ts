@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type {
   BossReadingAppearance,
+  CamouflagePetKind,
+  CamouflageRestoreTrigger,
   CamouflageWidgetPosition,
   ReadingSettings,
   ShortcutAction,
@@ -60,6 +62,19 @@ function normalizeCamouflageWidgetPosition(
   }
 }
 
+function normalizeCamouflagePetKind(value?: string): CamouflagePetKind {
+  return value === 'cat' ? 'cat' : 'dog'
+}
+
+function normalizeCamouflageRestoreTrigger(value?: string): CamouflageRestoreTrigger {
+  return value === 'click' ||
+    value === 'hover' ||
+    value === 'shortcut' ||
+    value === 'doubleClick'
+    ? value
+    : 'doubleClick'
+}
+
 interface SettingsState extends ReadingSettings {
   bossMode: boolean
   bossOpacity: number
@@ -76,6 +91,9 @@ interface SettingsState extends ReadingSettings {
   setBossRevealDelay: (delay: number) => void
   setBossHideDelay: (delay: number) => void
   setBossCamouflageEnabled: (enabled: boolean) => void
+  setBossCamouflagePetKind: (petKind: CamouflagePetKind) => void
+  setBossCamouflageWanderEnabled: (enabled: boolean) => void
+  setBossCamouflageRestoreTrigger: (trigger: CamouflageRestoreTrigger) => void
   setBossCamouflageWidgetPosition: (position: CamouflageWidgetPosition) => void
   setBossReadingAppearance: (appearance: Partial<BossReadingAppearance>) => void
   setBossMode: (enabled: boolean) => void
@@ -98,6 +116,9 @@ const defaultSettings: ReadingSettings = {
   bossRevealDelay: 80,
   bossHideDelay: 260,
   bossCamouflageEnabled: false,
+  bossCamouflagePetKind: 'dog',
+  bossCamouflageWanderEnabled: false,
+  bossCamouflageRestoreTrigger: 'doubleClick',
   bossCamouflageWidgetPosition: DEFAULT_CAMOUFLAGE_WIDGET_POSITION,
   bossReadingAppearance: DEFAULT_BOSS_READING_APPEARANCE,
 }
@@ -182,6 +203,16 @@ export const useSettingsStore = create<SettingsState>()(
       setBossRevealDelay: (bossRevealDelay) => set({ bossRevealDelay }),
       setBossHideDelay: (bossHideDelay) => set({ bossHideDelay }),
       setBossCamouflageEnabled: (bossCamouflageEnabled) => set({ bossCamouflageEnabled }),
+      setBossCamouflagePetKind: (bossCamouflagePetKind) =>
+        set({ bossCamouflagePetKind: normalizeCamouflagePetKind(bossCamouflagePetKind) }),
+      setBossCamouflageWanderEnabled: (bossCamouflageWanderEnabled) =>
+        set({ bossCamouflageWanderEnabled }),
+      setBossCamouflageRestoreTrigger: (bossCamouflageRestoreTrigger) =>
+        set({
+          bossCamouflageRestoreTrigger: normalizeCamouflageRestoreTrigger(
+            bossCamouflageRestoreTrigger
+          ),
+        }),
       setBossCamouflageWidgetPosition: (bossCamouflageWidgetPosition) =>
         set({
           bossCamouflageWidgetPosition: normalizeCamouflageWidgetPosition(
@@ -232,6 +263,17 @@ export const useSettingsStore = create<SettingsState>()(
           ),
           bossCamouflageEnabled: Boolean(
             typedPersistedState.bossCamouflageEnabled ?? currentState.bossCamouflageEnabled
+          ),
+          bossCamouflagePetKind: normalizeCamouflagePetKind(
+            typedPersistedState.bossCamouflagePetKind ?? currentState.bossCamouflagePetKind
+          ),
+          bossCamouflageWanderEnabled: Boolean(
+            typedPersistedState.bossCamouflageWanderEnabled ??
+              currentState.bossCamouflageWanderEnabled
+          ),
+          bossCamouflageRestoreTrigger: normalizeCamouflageRestoreTrigger(
+            typedPersistedState.bossCamouflageRestoreTrigger ??
+              currentState.bossCamouflageRestoreTrigger
           ),
           bossCamouflageWidgetPosition: normalizeCamouflageWidgetPosition(
             typedPersistedState.bossCamouflageWidgetPosition ??
